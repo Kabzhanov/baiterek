@@ -1,0 +1,455 @@
+{
+  "$defs": {
+    "BooleanField": {
+      "properties": {
+        "key": {
+          "title": "Key",
+          "type": "string"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "topic": {
+          "default": "main",
+          "title": "Topic",
+          "type": "string"
+        },
+        "required": {
+          "default": false,
+          "title": "Required",
+          "type": "boolean"
+        },
+        "type": {
+          "const": "boolean",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "key",
+        "label",
+        "type"
+      ],
+      "title": "BooleanField",
+      "type": "object"
+    },
+    "Computed": {
+      "properties": {
+        "key": {
+          "title": "Key",
+          "type": "string"
+        },
+        "expression": {
+          "additionalProperties": true,
+          "title": "Expression",
+          "type": "object"
+        }
+      },
+      "required": [
+        "key",
+        "expression"
+      ],
+      "title": "Computed",
+      "type": "object"
+    },
+    "Meta": {
+      "properties": {
+        "title": {
+          "title": "Title",
+          "type": "string"
+        },
+        "description": {
+          "default": "",
+          "title": "Description",
+          "type": "string"
+        }
+      },
+      "required": [
+        "title"
+      ],
+      "title": "Meta",
+      "type": "object"
+    },
+    "NumberField": {
+      "properties": {
+        "key": {
+          "title": "Key",
+          "type": "string"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "topic": {
+          "default": "main",
+          "title": "Topic",
+          "type": "string"
+        },
+        "required": {
+          "default": false,
+          "title": "Required",
+          "type": "boolean"
+        },
+        "type": {
+          "const": "number",
+          "title": "Type",
+          "type": "string"
+        },
+        "minimum": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Minimum"
+        },
+        "maximum": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Maximum"
+        }
+      },
+      "required": [
+        "key",
+        "label",
+        "type"
+      ],
+      "title": "NumberField",
+      "type": "object"
+    },
+    "RepeaterField": {
+      "properties": {
+        "key": {
+          "title": "Key",
+          "type": "string"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "topic": {
+          "default": "main",
+          "title": "Topic",
+          "type": "string"
+        },
+        "required": {
+          "default": false,
+          "title": "Required",
+          "type": "boolean"
+        },
+        "type": {
+          "const": "repeater",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "key",
+        "label",
+        "type"
+      ],
+      "title": "RepeaterField",
+      "type": "object"
+    },
+    "Rule": {
+      "properties": {
+        "target": {
+          "title": "Target",
+          "type": "string"
+        },
+        "effect": {
+          "enum": [
+            "show",
+            "hide",
+            "require",
+            "optional",
+            "enable",
+            "disable"
+          ],
+          "title": "Effect",
+          "type": "string"
+        },
+        "when": {
+          "additionalProperties": true,
+          "title": "When",
+          "type": "object"
+        }
+      },
+      "required": [
+        "target",
+        "effect",
+        "when"
+      ],
+      "title": "Rule",
+      "type": "object"
+    },
+    "SelectField": {
+      "properties": {
+        "key": {
+          "title": "Key",
+          "type": "string"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "topic": {
+          "default": "main",
+          "title": "Topic",
+          "type": "string"
+        },
+        "required": {
+          "default": false,
+          "title": "Required",
+          "type": "boolean"
+        },
+        "type": {
+          "const": "select",
+          "title": "Type",
+          "type": "string"
+        },
+        "options": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Options",
+          "type": "array"
+        }
+      },
+      "required": [
+        "key",
+        "label",
+        "type",
+        "options"
+      ],
+      "title": "SelectField",
+      "type": "object"
+    },
+    "Stage": {
+      "properties": {
+        "key": {
+          "title": "Key",
+          "type": "string"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        },
+        "steps": {
+          "items": {
+            "$ref": "#/$defs/Step"
+          },
+          "title": "Steps",
+          "type": "array"
+        }
+      },
+      "required": [
+        "key",
+        "title",
+        "steps"
+      ],
+      "title": "Stage",
+      "type": "object"
+    },
+    "Step": {
+      "properties": {
+        "key": {
+          "title": "Key",
+          "type": "string"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        },
+        "fields": {
+          "items": {
+            "discriminator": {
+              "mapping": {
+                "boolean": "#/$defs/BooleanField",
+                "number": "#/$defs/NumberField",
+                "repeater": "#/$defs/RepeaterField",
+                "select": "#/$defs/SelectField",
+                "text": "#/$defs/TextField"
+              },
+              "propertyName": "type"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/$defs/TextField"
+              },
+              {
+                "$ref": "#/$defs/NumberField"
+              },
+              {
+                "$ref": "#/$defs/BooleanField"
+              },
+              {
+                "$ref": "#/$defs/SelectField"
+              },
+              {
+                "$ref": "#/$defs/RepeaterField"
+              }
+            ]
+          },
+          "title": "Fields",
+          "type": "array"
+        }
+      },
+      "required": [
+        "key",
+        "title",
+        "fields"
+      ],
+      "title": "Step",
+      "type": "object"
+    },
+    "TextField": {
+      "properties": {
+        "key": {
+          "title": "Key",
+          "type": "string"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "topic": {
+          "default": "main",
+          "title": "Topic",
+          "type": "string"
+        },
+        "required": {
+          "default": false,
+          "title": "Required",
+          "type": "boolean"
+        },
+        "type": {
+          "const": "text",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "key",
+        "label",
+        "type"
+      ],
+      "title": "TextField",
+      "type": "object"
+    },
+    "Transition": {
+      "properties": {
+        "source": {
+          "title": "Source",
+          "type": "string"
+        },
+        "target": {
+          "title": "Target",
+          "type": "string"
+        },
+        "when": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "When"
+        }
+      },
+      "required": [
+        "source",
+        "target"
+      ],
+      "title": "Transition",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "service_id": {
+      "title": "Service Id",
+      "type": "string"
+    },
+    "version": {
+      "default": 1,
+      "title": "Version",
+      "type": "integer"
+    },
+    "meta": {
+      "$ref": "#/$defs/Meta"
+    },
+    "stages": {
+      "items": {
+        "$ref": "#/$defs/Stage"
+      },
+      "title": "Stages",
+      "type": "array"
+    },
+    "rules": {
+      "items": {
+        "$ref": "#/$defs/Rule"
+      },
+      "title": "Rules",
+      "type": "array"
+    },
+    "computed": {
+      "items": {
+        "$ref": "#/$defs/Computed"
+      },
+      "title": "Computed",
+      "type": "array"
+    },
+    "statuses": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Statuses",
+      "type": "array"
+    },
+    "transitions": {
+      "items": {
+        "$ref": "#/$defs/Transition"
+      },
+      "title": "Transitions",
+      "type": "array"
+    },
+    "integrations": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Integrations",
+      "type": "array"
+    }
+  },
+  "required": [
+    "service_id",
+    "meta",
+    "stages",
+    "statuses"
+  ],
+  "title": "ServiceDefinition",
+  "type": "object"
+}

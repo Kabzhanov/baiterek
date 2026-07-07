@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.errors import ApiError
 from app.db import get_session
-from app.models import User
+from app.models import User, UserRole
 
 
 async def get_current_user_id(
@@ -31,3 +31,30 @@ async def get_current_user_id(
     if known is None:
         raise ApiError(401, "unauthorized", "unknown user", {})
     return user_id
+
+
+def require_role(*roles: UserRole):
+    """Dependency factory: 403s unless the authenticated user's role is one of `roles`.
+
+    Kept generic (one factory, not one `get_current_*_user_id` per role) because both
+    the admin status-change endpoint (`app/api/admin.py`, ADMIN only) and the
+    Definition import endpoint (`app/api/definitions.py`, ADMIN or AUTHOR — SPEC.md
+    §5.4 "author — конструктор своей организации") need the same shape of check with a
+    different allowed set.
+    """
+
+    async def _dependency(
+        user_id: uuid.UUID = Depends(get_current_user_id),
+        session: AsyncSession = Depends(get_session),
+    ) -> uuid.UUID:
+        role = await session.scalar(select(User.role).where(User.id == user_id))
+        if role not in roles:
+            raise ApiError(
+                403,
+                "forbidden",
+                "User role is not allowed to perform this action",
+                {"required_roles": [item.value for item in roles]},
+            )
+        return user_id
+
+    return _dependency
