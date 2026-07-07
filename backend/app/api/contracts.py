@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import date, datetime
+from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -212,3 +213,73 @@ class IntakeMatchOut(BaseModel):
     items: list[IntakeMatchItem]
     method: str  # "llm" | "keyword"
     degraded: bool
+
+
+# ---------------------------------------------------------------------------
+# Content: карта проектов / аналитика / инструменты и материалы (SPEC.md §4.5-4.7).
+# Served by `app/api/content.py`. Public read-only — no auth.
+# ---------------------------------------------------------------------------
+
+
+class MapProjectOut(BaseModel):
+    id: uuid.UUID
+    org_id: uuid.UUID
+    organization: str  # Organization.short_name
+    name: str
+    region_code: str
+    locality: str | None
+    lat: Decimal
+    lng: Decimal
+    industry: str | None
+    amount: Decimal | None
+    period_start: date | None
+    period_end: date | None
+    status: str
+    description: str | None
+    is_demo: bool
+
+
+class MapProjectListOut(BaseModel):
+    items: list[MapProjectOut]
+
+
+class MapRegionSummary(BaseModel):
+    region_code: str
+    count: int
+    amount: Decimal
+
+
+class MapSummaryOut(BaseModel):
+    total_count: int
+    total_amount: Decimal
+    by_region: list[MapRegionSummary]
+
+
+class AnalyticsMaterialOut(BaseModel):
+    id: uuid.UUID
+    org_id: uuid.UUID
+    organization: str  # Organization.short_name
+    type: str
+    title: str
+    description: str | None
+    source: str | None
+    period: str | None
+    url: str | None
+    embed_allowed: bool
+
+
+class AnalyticsMaterialListOut(BaseModel):
+    items: list[AnalyticsMaterialOut]
+
+
+class KnowledgeItemOut(BaseModel):
+    id: uuid.UUID
+    category: str
+    title: str
+    description: str | None
+    content: str | None
+    url: str | None
+
+
+class KnowledgeItemListOut(BaseModel):
+    items: list[KnowledgeItemOut]

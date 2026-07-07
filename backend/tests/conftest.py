@@ -43,7 +43,13 @@ async def _clean_database():
     yield
     async with engine.begin() as connection:
         await connection.execute(
-            text("TRUNCATE TABLE applications, service_definitions, users, organizations RESTART IDENTITY CASCADE")
+            text(
+                # knowledge_items has no FK to organizations (unlike map_projects/
+                # analytics_materials, which cascade-delete with it) so it needs its own
+                # entry here, or rows seeded by test_api_content.py would leak across tests.
+                "TRUNCATE TABLE applications, service_definitions, users, organizations, "
+                "knowledge_items RESTART IDENTITY CASCADE"
+            )
         )
 
 
@@ -65,7 +71,12 @@ def _random_iin_bin() -> str:
 
 
 async def seed_organization(session, **overrides) -> Organization:
-    organization = Organization(name="Демо Холдинг", short_name="Demo", **overrides)
+    # Merged into defaults (not passed alongside them) so callers can override
+    # `short_name` — test_api_content.py needs distinct short_names per organization
+    # to exercise the map/analytics `organization` filter.
+    defaults: dict = {"name": "Демо Холдинг", "short_name": "Demo"}
+    defaults.update(overrides)
+    organization = Organization(**defaults)
     session.add(organization)
     await session.commit()
     await session.refresh(organization)

@@ -21,6 +21,23 @@ export default async function Take() {
             </div>
           </div>
         </section>
+        <section className="section container">
+          <h2>Больше возможностей</h2>
+          <div className="grid">
+            <a className="card" href="/take/map">
+              <h3>Карта проектов</h3>
+              <p className="muted">~120 проектов с поддержкой Холдинга на карте регионов Казахстана.</p>
+            </a>
+            <a className="card" href="/take/analytics">
+              <h3>Аналитика и отчётность</h3>
+              <p className="muted">Годовые отчёты Холдинга и материалы дочерних организаций.</p>
+            </a>
+            <a className="card" href="/take/tools">
+              <h3>Инструменты и материалы</h3>
+              <p className="muted">База знаний, шаблоны, чек-листы и калькуляторы для бизнеса.</p>
+            </a>
+          </div>
+        </section>
         <section className="section container" id="catalog">
           <h2>Каталог услуг</h2>
           <p className="muted">Найдите услугу по названию, направлению, организации или тому, кому она подходит — ЮЛ или ИП.</p>
