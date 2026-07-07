@@ -43,7 +43,9 @@ export class ApplicationApiError extends Error {
   }
 }
 
-async function call<T>(path: string, init?: RequestInit): Promise<T> {
+// Exported so lib/definition-api.ts (админ-контур /create) reuses the exact same
+// transport semantics: X-User-Id header, BackendUnavailableError vs ApplicationApiError.
+export async function call<T>(path: string, init?: RequestInit): Promise<T> {
   let response: Response;
   try {
     response = await fetch(`${API_BASE}${path}`, {

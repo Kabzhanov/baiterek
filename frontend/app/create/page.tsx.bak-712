@@ -1,0 +1,1 @@
+import{SiteHeader}from"@/components/site-header";import{ConstructorShell}from"@/components/constructor/constructor-shell";export default function Create(){return <><SiteHeader/><ConstructorShell/></>}
