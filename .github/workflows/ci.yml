@@ -1,0 +1,70 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  infrastructure:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate Compose
+        env:
+          POSTGRES_PASSWORD: ci-only-not-a-secret
+          SECRET_KEY: ci-only-not-a-secret-value-32chars
+        run: docker compose config --quiet
+      - name: Validate nginx configuration
+        run: docker run --rm -v "$PWD/deploy/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro" nginx:1.27-alpine nginx -t
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        if: ${{ hashFiles('backend/pyproject.toml') != '' }}
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Install backend
+        if: ${{ hashFiles('backend/pyproject.toml') != '' }}
+        run: pip install -e './backend[dev]'
+      - name: Lint, typecheck, and test backend
+        if: ${{ hashFiles('backend/pyproject.toml') != '' }}
+        run: ruff check backend && mypy backend/app && pytest backend/tests
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        if: ${{ hashFiles('frontend/package-lock.json') != '' }}
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install frontend
+        if: ${{ hashFiles('frontend/package-lock.json') != '' }}
+        working-directory: frontend
+        run: npm ci
+      - name: Lint, typecheck, and build frontend
+        if: ${{ hashFiles('frontend/package-lock.json') != '' }}
+        working-directory: frontend
+        run: npm run lint && npm run typecheck && npm run build
+  hardcode-guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check for hardcoded domain terms
+        run: make lint-hardcode
+  secret-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
