@@ -34,6 +34,15 @@
 
 - [Итоговая спецификация](SPEC.md)
 - [Архитектура](ARCHITECTURE.md)
+- [Пошаговый план реализации](docs/IMPLEMENTATION_PLAN.md)
+
+## Git
+
+Рабочая ветка MVP и всех последующих push — `main`.
+
+```bash
+git push origin main
+```
 
 ## Быстрый старт
 
