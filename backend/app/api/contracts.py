@@ -103,3 +103,112 @@ class CabinetApplicationDetail(CabinetApplicationItem):
 
 class CabinetListOut(BaseModel):
     items: list[CabinetApplicationItem]
+
+
+# ---------------------------------------------------------------------------
+# Constructor / registry API (SPEC.md §5.1/§5.2; docs/IMPLEMENTATION_PLAN.md §9
+# "Registry/constructor"). Served by `app/api/admin_definitions.py`.
+# ---------------------------------------------------------------------------
+
+
+class DefinitionListItem(BaseModel):
+    id: uuid.UUID
+    service_id: uuid.UUID
+    slug: str
+    status: str
+    version: int
+    title: str
+    updated_at: datetime
+
+
+class DefinitionListOut(BaseModel):
+    items: list[DefinitionListItem]
+
+
+class DefinitionDetailOut(BaseModel):
+    id: uuid.UUID
+    service_id: uuid.UUID
+    org_id: uuid.UUID
+    slug: str
+    status: str
+    version: int
+    definition: dict
+    created_by: uuid.UUID | None
+    published_at: datetime | None
+    updated_at: datetime
+
+
+class CreateDefinitionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    # `org_id` is required even though SPEC.md's endpoint sketch only lists
+    # `{slug, definition}`: `service_definitions.org_id` is a NOT NULL FK
+    # (`app/models/service_definition.py`) with no default, so the caller must supply
+    # it — same requirement the existing `/admin/definitions/import` endpoint already
+    # has (`app/api/definitions.py`).
+    org_id: uuid.UUID
+    slug: str
+    definition: dict
+
+
+class UpdateDefinitionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    definition: dict
+
+
+class PublishDefinitionOut(BaseModel):
+    id: uuid.UUID
+    service_id: uuid.UUID
+    slug: str
+    status: str
+    version: int
+    published_at: datetime | None
+    # See `app/api/admin_definitions.py` module docstring: the draft row that was
+    # published is deleted as part of the same transaction, not kept around.
+    draft_deleted: bool = True
+
+
+class DuplicateDefinitionOut(BaseModel):
+    id: uuid.UUID
+    service_id: uuid.UUID
+    slug: str
+    status: str
+    version: int
+
+
+# ---------------------------------------------------------------------------
+# AI layer (SPEC.md §7.1 "Подбор меры", §7.2 "Генератор услуги из документа", §7.3).
+# Served by `app/api/admin_definitions.py` (generate) and `app/api/intake.py` (match).
+# ---------------------------------------------------------------------------
+
+
+class GenerateDefinitionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    text: str
+    # See `CreateDefinitionRequest.org_id` docstring — same NOT NULL FK constraint.
+    org_id: uuid.UUID
+    # Optional: derived from the generated `meta.title` (transliterated, deduplicated)
+    # when omitted, so a plain `{text, org_id}` request still works end to end.
+    slug: str | None = None
+
+
+class GenerateDefinitionOut(BaseModel):
+    id: uuid.UUID
+    warnings: list[str]
+    degraded: bool
+
+
+class IntakeMatchRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    query: str
+
+
+class IntakeMatchItem(BaseModel):
+    slug: str
+    title: str
+    why: str
+
+
+class IntakeMatchOut(BaseModel):
+    items: list[IntakeMatchItem]
+    method: str  # "llm" | "keyword"
+    degraded: bool
