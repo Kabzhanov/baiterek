@@ -1,0 +1,532 @@
+{
+  "schema_version": "1.0",
+  "service_id": "wagons-leasing-dsl",
+  "version": 1,
+  "meta": {
+    "title": "Приобретение подвижного состава в лизинг — I этап",
+    "description": "Финансовый лизинг грузовых вагонов для перевозчиков и операторов подвижного состава: заявка на I этапе, расширенные данные — на II этапе после индикативного одобрения.",
+    "org": "brk",
+    "category": "leasing",
+    "audience": [
+      "ЮЛ",
+      "ИП"
+    ],
+    "summary_plain": "Лизинг вагонов для перевозки грузов: расчёт платежа и подача заявки в несколько шагов.",
+    "conditions": [
+      {
+        "label": "Аванс",
+        "value": "по условиям программы"
+      },
+      {
+        "label": "Срок лизинга",
+        "value": "по условиям программы"
+      },
+      {
+        "label": "Ставка вознаграждения",
+        "value": "индикативная, уточняется при рассмотрении"
+      }
+    ],
+    "documents_checklist": [
+      "Документ о регистрации заявителя (ИП/ТОО)",
+      "Справка о финансовой отчетности за последний период"
+    ],
+    "result": "Решение о лизинговом финансировании / индикативное одобрение",
+    "labels_plain": {
+      "draft": "Черновик",
+      "submitted": "Заявка отправлена",
+      "in_review_bpm": "Заявку рассматривает БРК",
+      "indicative_approved": "Индикативно одобрено — доступен II этап",
+      "rejected": "В финансировании отказано"
+    },
+    "intake_mapping": {
+      "applicant_type": {
+        "source": "ai_dialog.legal_form",
+        "provenance": "ai_dialog"
+      },
+      "wagon_condition": {
+        "source": "ai_dialog.equipment_condition",
+        "provenance": "ai_dialog"
+      },
+      "unit_count": {
+        "source": "ai_dialog.fleet_size",
+        "provenance": "ai_dialog"
+      }
+    }
+  },
+  "statuses": [
+    "draft",
+    "submitted",
+    "in_review_bpm",
+    "indicative_approved",
+    "rejected"
+  ],
+  "transitions": [
+    {
+      "source": "draft",
+      "target": "submitted"
+    },
+    {
+      "source": "submitted",
+      "target": "in_review_bpm"
+    },
+    {
+      "source": "in_review_bpm",
+      "target": "indicative_approved"
+    },
+    {
+      "source": "in_review_bpm",
+      "target": "rejected"
+    }
+  ],
+  "stages": [
+    {
+      "key": "stage-1",
+      "title": "Этап I. Заявка и параметры сделки",
+      "steps": [
+        {
+          "key": "applicant",
+          "title": "Заявитель",
+          "fields": [
+            {
+              "key": "applicant_type",
+              "label": "Тип заявителя",
+              "type": "select",
+              "options": [
+                "ИП",
+                "ТОО"
+              ],
+              "required": true,
+              "topic": "applicant"
+            },
+            {
+              "key": "company_name",
+              "label": "Наименование заявителя",
+              "type": "text",
+              "required": true,
+              "topic": "applicant"
+            },
+            {
+              "key": "bin",
+              "label": "БИН/ИИН",
+              "type": "text",
+              "required": true,
+              "topic": "applicant"
+            },
+            {
+              "key": "contact_phone",
+              "label": "Контактный телефон",
+              "type": "text",
+              "required": true,
+              "topic": "applicant"
+            }
+          ]
+        },
+        {
+          "key": "deal_scope",
+          "title": "Параметры сделки",
+          "fields": [
+            {
+              "key": "wagon_condition",
+              "label": "Состояние вагонов",
+              "type": "select",
+              "options": [
+                "Новые",
+                "Б/у"
+              ],
+              "required": true,
+              "topic": "deal"
+            },
+            {
+              "key": "wagon_type",
+              "label": "Тип вагонов",
+              "type": "select",
+              "options": [
+                "Полувагон",
+                "Хоппер",
+                "Цистерна",
+                "Крытый вагон"
+              ],
+              "required": true,
+              "topic": "deal"
+            },
+            {
+              "key": "unit_count",
+              "label": "Количество единиц, шт.",
+              "type": "number",
+              "minimum": 1,
+              "required": true,
+              "topic": "deal"
+            },
+            {
+              "key": "unit_price",
+              "label": "Цена за единицу, ₸",
+              "type": "number",
+              "minimum": 1,
+              "required": true,
+              "topic": "deal"
+            },
+            {
+              "key": "advance_percent",
+              "label": "Аванс, % от стоимости",
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100,
+              "required": true,
+              "topic": "deal"
+            },
+            {
+              "key": "lease_term_months",
+              "label": "Срок лизинга, мес.",
+              "type": "number",
+              "minimum": 1,
+              "required": true,
+              "topic": "deal"
+            }
+          ]
+        },
+        {
+          "key": "wagon_details",
+          "title": "Технические детали",
+          "fields": [
+            {
+              "key": "positions",
+              "label": "Спецификация позиций (тип, количество, цена)",
+              "type": "repeater",
+              "required": true,
+              "topic": "technical"
+            },
+            {
+              "key": "warranty_period_months",
+              "label": "Гарантийный срок, мес.",
+              "type": "number",
+              "minimum": 0,
+              "topic": "technical"
+            },
+            {
+              "key": "manufacture_year",
+              "label": "Год выпуска",
+              "type": "number",
+              "minimum": 1950,
+              "topic": "technical"
+            },
+            {
+              "key": "inspection_report_number",
+              "label": "Номер акта технического осмотра",
+              "type": "text",
+              "topic": "technical"
+            }
+          ]
+        },
+        {
+          "key": "financing",
+          "title": "Финансирование",
+          "fields": [
+            {
+              "key": "rate_percent",
+              "label": "Индикативная ставка, % годовых (по условиям программы)",
+              "type": "number",
+              "minimum": 0.1,
+              "required": true,
+              "topic": "financing"
+            },
+            {
+              "key": "subsidy_program",
+              "label": "Участие в программе субсидирования ставки",
+              "type": "boolean",
+              "required": true,
+              "topic": "financing"
+            },
+            {
+              "key": "subsidy_certificate_number",
+              "label": "Номер сертификата участника программы субсидирования",
+              "type": "text",
+              "topic": "financing"
+            }
+          ]
+        },
+        {
+          "key": "documents",
+          "title": "Документы",
+          "fields": [
+            {
+              "key": "ip_registration_certificate",
+              "label": "Документ о регистрации ИП",
+              "type": "text",
+              "topic": "documents"
+            },
+            {
+              "key": "too_charter_and_registration",
+              "label": "Устав и справка о регистрации ТОО",
+              "type": "text",
+              "topic": "documents"
+            },
+            {
+              "key": "financial_statement_reference",
+              "label": "Справка о финансовой отчетности",
+              "type": "text",
+              "required": true,
+              "topic": "documents"
+            },
+            {
+              "key": "power_of_attorney",
+              "label": "Доверенность представителя (если применимо)",
+              "type": "text",
+              "topic": "documents"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "stage-2",
+      "title": "Этап II. Расширенные данные (по индикативному одобрению)",
+      "steps": [
+        {
+          "key": "financial_disclosure",
+          "title": "Финансовая отчетность",
+          "fields": [
+            {
+              "key": "audited_financials_reference",
+              "label": "Ссылка/номер аудированной фин. отчетности",
+              "type": "text",
+              "topic": "stage2"
+            },
+            {
+              "key": "revenue_last_year",
+              "label": "Выручка за последний год, ₸",
+              "type": "number",
+              "minimum": 0,
+              "topic": "stage2"
+            },
+            {
+              "key": "net_profit_last_year",
+              "label": "Чистая прибыль за последний год, ₸",
+              "type": "number",
+              "topic": "stage2"
+            }
+          ]
+        },
+        {
+          "key": "collateral",
+          "title": "Обеспечение",
+          "fields": [
+            {
+              "key": "collateral_type",
+              "label": "Вид обеспечения",
+              "type": "select",
+              "options": [
+                "Залог вагонов",
+                "Поручительство",
+                "Банковская гарантия",
+                "Иное"
+              ],
+              "topic": "stage2"
+            },
+            {
+              "key": "collateral_description",
+              "label": "Описание предмета обеспечения",
+              "type": "text",
+              "topic": "stage2"
+            },
+            {
+              "key": "additional_documents",
+              "label": "Дополнительные документы по обеспечению",
+              "type": "repeater",
+              "topic": "stage2"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "rules": [
+    {
+      "target": "warranty_period_months",
+      "effect": "hide",
+      "when": {
+        "op": "ne",
+        "args": [
+          "$wagon_condition",
+          "Новые"
+        ]
+      }
+    },
+    {
+      "target": "manufacture_year",
+      "effect": "hide",
+      "when": {
+        "op": "ne",
+        "args": [
+          "$wagon_condition",
+          "Б/у"
+        ]
+      }
+    },
+    {
+      "target": "manufacture_year",
+      "effect": "require",
+      "when": {
+        "op": "eq",
+        "args": [
+          "$wagon_condition",
+          "Б/у"
+        ]
+      }
+    },
+    {
+      "target": "inspection_report_number",
+      "effect": "hide",
+      "when": {
+        "op": "ne",
+        "args": [
+          "$wagon_condition",
+          "Б/у"
+        ]
+      }
+    },
+    {
+      "target": "inspection_report_number",
+      "effect": "require",
+      "when": {
+        "op": "eq",
+        "args": [
+          "$wagon_condition",
+          "Б/у"
+        ]
+      }
+    },
+    {
+      "target": "subsidy_certificate_number",
+      "effect": "hide",
+      "when": {
+        "op": "eq",
+        "args": [
+          "$subsidy_program",
+          false
+        ]
+      }
+    },
+    {
+      "target": "subsidy_certificate_number",
+      "effect": "require",
+      "when": {
+        "op": "eq",
+        "args": [
+          "$subsidy_program",
+          true
+        ]
+      }
+    },
+    {
+      "target": "ip_registration_certificate",
+      "effect": "hide",
+      "when": {
+        "op": "ne",
+        "args": [
+          "$applicant_type",
+          "ИП"
+        ]
+      }
+    },
+    {
+      "target": "ip_registration_certificate",
+      "effect": "require",
+      "when": {
+        "op": "eq",
+        "args": [
+          "$applicant_type",
+          "ИП"
+        ]
+      }
+    },
+    {
+      "target": "too_charter_and_registration",
+      "effect": "hide",
+      "when": {
+        "op": "ne",
+        "args": [
+          "$applicant_type",
+          "ТОО"
+        ]
+      }
+    },
+    {
+      "target": "too_charter_and_registration",
+      "effect": "require",
+      "when": {
+        "op": "eq",
+        "args": [
+          "$applicant_type",
+          "ТОО"
+        ]
+      }
+    }
+  ],
+  "computed": [
+    {
+      "key": "total_cost",
+      "expression": {
+        "op": "mul",
+        "args": [
+          "$unit_count",
+          "$unit_price"
+        ]
+      }
+    },
+    {
+      "key": "advance_amount",
+      "expression": {
+        "op": "round",
+        "args": [
+          {
+            "op": "mul",
+            "args": [
+              "$total_cost",
+              {
+                "op": "div",
+                "args": [
+                  "$advance_percent",
+                  100
+                ]
+              }
+            ]
+          },
+          0
+        ]
+      }
+    },
+    {
+      "key": "financing_amount",
+      "expression": {
+        "op": "sub",
+        "args": [
+          "$total_cost",
+          "$advance_amount"
+        ]
+      }
+    },
+    {
+      "key": "monthly_payment",
+      "expression": {
+        "op": "annuity",
+        "args": [
+          "$financing_amount",
+          {
+            "op": "div",
+            "args": [
+              "$rate_percent",
+              100
+            ]
+          },
+          "$lease_term_months"
+        ]
+      }
+    }
+  ],
+  "integrations": [
+    "egov_idp",
+    "gbd_ul",
+    "ecp_sign",
+    "bpm"
+  ]
+}

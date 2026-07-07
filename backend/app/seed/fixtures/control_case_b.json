@@ -1,0 +1,563 @@
+{
+  "schema_version": "1.0",
+  "service_id": "agro-livestock-dsl",
+  "version": 1,
+  "meta": {
+    "title": "Агробизнес: животноводство",
+    "description": "Финансирование проектов животноводства (приобретение скота, строительство и модернизация помещений, пополнение оборотных средств) для крестьянских хозяйств, ИП, ТОО и сельхозкооперативов.",
+    "org": "kaf",
+    "category": "credit",
+    "audience": [
+      "КХ",
+      "ИП",
+      "ТОО",
+      "СПК"
+    ],
+    "summary_plain": "Финансирование покупки скота, строительства ферм и оборотных средств для животноводства.",
+    "conditions": [
+      {
+        "label": "Предельная сумма финансирования",
+        "value": "по условиям программы (уточняется при рассмотрении)"
+      },
+      {
+        "label": "Ставка вознаграждения",
+        "value": "по условиям программы, льготная — при участии в программах поддержки"
+      }
+    ],
+    "documents_checklist": [
+      "Документ о регистрации заявителя",
+      "Подтверждение прав на земельный участок"
+    ],
+    "result": "Решение о финансировании / запрос дозагрузки документов",
+    "labels_plain": {
+      "draft": "Черновик",
+      "submitted": "Заявка отправлена",
+      "in_review_bpm": "Заявку рассматривает КАФ",
+      "document_request": "Запрошены дополнительные документы",
+      "approved": "Финансирование одобрено",
+      "rejected": "В финансировании отказано"
+    },
+    "intake_mapping": {
+      "applicant_type": {
+        "source": "ai_dialog.legal_form",
+        "provenance": "ai_dialog"
+      },
+      "region": {
+        "source": "ai_dialog.location",
+        "provenance": "ai_dialog"
+      },
+      "livestock_type": {
+        "source": "ai_dialog.livestock_kind",
+        "provenance": "ai_dialog"
+      },
+      "funding_purpose": {
+        "source": "ai_dialog.goal",
+        "provenance": "ai_dialog"
+      }
+    }
+  },
+  "statuses": [
+    "draft",
+    "submitted",
+    "in_review_bpm",
+    "document_request",
+    "approved",
+    "rejected"
+  ],
+  "transitions": [
+    {
+      "source": "draft",
+      "target": "submitted"
+    },
+    {
+      "source": "submitted",
+      "target": "in_review_bpm"
+    },
+    {
+      "source": "in_review_bpm",
+      "target": "document_request"
+    },
+    {
+      "source": "in_review_bpm",
+      "target": "approved"
+    },
+    {
+      "source": "in_review_bpm",
+      "target": "rejected"
+    }
+  ],
+  "stages": [
+    {
+      "key": "stage-1",
+      "title": "Этап I. Анкета и расчёт",
+      "steps": [
+        {
+          "key": "applicant",
+          "title": "Заявитель",
+          "fields": [
+            {
+              "key": "applicant_type",
+              "label": "Тип заявителя",
+              "type": "select",
+              "options": [
+                "КХ",
+                "ИП",
+                "ТОО",
+                "СПК"
+              ],
+              "required": true,
+              "topic": "applicant"
+            },
+            {
+              "key": "applicant_name",
+              "label": "Наименование/ФИО заявителя",
+              "type": "text",
+              "required": true,
+              "topic": "applicant"
+            },
+            {
+              "key": "bin_iin",
+              "label": "БИН/ИИН",
+              "type": "text",
+              "required": true,
+              "topic": "applicant"
+            },
+            {
+              "key": "contact_phone",
+              "label": "Контактный телефон",
+              "type": "text",
+              "required": true,
+              "topic": "applicant"
+            }
+          ]
+        },
+        {
+          "key": "farm",
+          "title": "Хозяйство",
+          "fields": [
+            {
+              "key": "region",
+              "label": "Регион (КАТО)",
+              "type": "select",
+              "options": [
+                "г. Астана",
+                "г. Алматы",
+                "г. Шымкент",
+                "Абайская область",
+                "Акмолинская область",
+                "Актюбинская область",
+                "Алматинская область",
+                "Атырауская область",
+                "Восточно-Казахстанская область",
+                "Жетысуская область",
+                "Жамбылская область",
+                "Западно-Казахстанская область",
+                "Карагандинская область",
+                "Костанайская область",
+                "Кызылординская область",
+                "Мангистауская область",
+                "Павлодарская область",
+                "Северо-Казахстанская область",
+                "Туркестанская область",
+                "Улытауская область"
+              ],
+              "required": true,
+              "topic": "farm"
+            },
+            {
+              "key": "district",
+              "label": "Район/населённый пункт",
+              "type": "text",
+              "required": true,
+              "topic": "farm"
+            },
+            {
+              "key": "land_area_hectares",
+              "label": "Площадь земельного участка, га",
+              "type": "number",
+              "minimum": 0,
+              "required": true,
+              "topic": "farm"
+            },
+            {
+              "key": "land_use_right",
+              "label": "Право пользования землёй",
+              "type": "select",
+              "options": [
+                "Собственность",
+                "Аренда",
+                "Иное право пользования"
+              ],
+              "required": true,
+              "topic": "farm"
+            }
+          ]
+        },
+        {
+          "key": "livestock",
+          "title": "Поголовье и назначение",
+          "fields": [
+            {
+              "key": "livestock_type",
+              "label": "Вид скота",
+              "type": "select",
+              "options": [
+                "КРС (крупный рогатый скот)",
+                "МРС (мелкий рогатый скот)",
+                "Лошади",
+                "Верблюды",
+                "Птица",
+                "Свиньи"
+              ],
+              "required": true,
+              "topic": "livestock"
+            },
+            {
+              "key": "breeding_purpose",
+              "label": "Племенное направление",
+              "type": "boolean",
+              "topic": "livestock"
+            },
+            {
+              "key": "livestock_positions",
+              "label": "Поголовье по видам и количеству",
+              "type": "repeater",
+              "required": true,
+              "topic": "livestock"
+            }
+          ]
+        },
+        {
+          "key": "purpose",
+          "title": "Цель финансирования",
+          "fields": [
+            {
+              "key": "funding_purpose",
+              "label": "Цель финансирования",
+              "type": "select",
+              "options": [
+                "Приобретение скота",
+                "Строительство и модернизация помещений",
+                "Пополнение оборотных средств"
+              ],
+              "required": true,
+              "topic": "purpose"
+            },
+            {
+              "key": "requested_amount",
+              "label": "Запрашиваемая сумма финансирования, ₸",
+              "type": "number",
+              "minimum": 1,
+              "required": true,
+              "topic": "purpose"
+            }
+          ]
+        },
+        {
+          "key": "purpose_details",
+          "title": "Детали по цели финансирования",
+          "fields": [
+            {
+              "key": "purchase_average_price",
+              "label": "Средняя цена приобретения за голову, ₸",
+              "type": "number",
+              "minimum": 1,
+              "topic": "purpose"
+            },
+            {
+              "key": "construction_object_type",
+              "label": "Тип строящегося/модернизируемого объекта",
+              "type": "text",
+              "topic": "purpose"
+            },
+            {
+              "key": "working_capital_purpose",
+              "label": "Назначение оборотных средств",
+              "type": "text",
+              "topic": "purpose"
+            }
+          ]
+        },
+        {
+          "key": "financing",
+          "title": "Финансирование",
+          "fields": [
+            {
+              "key": "collateral_value",
+              "label": "Оценочная стоимость предлагаемого обеспечения, ₸ (0 — если обеспечение не предоставляется)",
+              "type": "number",
+              "minimum": 0,
+              "required": true,
+              "topic": "financing"
+            },
+            {
+              "key": "has_state_subsidy_support",
+              "label": "Претендует на участие в программе государственной поддержки/субсидирования",
+              "type": "boolean",
+              "required": true,
+              "topic": "financing"
+            },
+            {
+              "key": "subsidy_program_reference",
+              "label": "Название/номер программы поддержки",
+              "type": "text",
+              "topic": "financing"
+            }
+          ]
+        },
+        {
+          "key": "documents",
+          "title": "Документы",
+          "fields": [
+            {
+              "key": "kh_registration_certificate",
+              "label": "Свидетельство о регистрации КХ",
+              "type": "text",
+              "topic": "documents"
+            },
+            {
+              "key": "ip_registration_certificate",
+              "label": "Документ о регистрации ИП",
+              "type": "text",
+              "topic": "documents"
+            },
+            {
+              "key": "too_or_spk_charter",
+              "label": "Устав ТОО/СПК и справка о регистрации",
+              "type": "text",
+              "topic": "documents"
+            },
+            {
+              "key": "land_ownership_confirmation",
+              "label": "Подтверждение прав на земельный участок",
+              "type": "text",
+              "required": true,
+              "topic": "documents"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "stage-2",
+      "title": "Этап II. Дозагрузка документов по запросу",
+      "steps": [
+        {
+          "key": "additional_documents",
+          "title": "Дополнительные документы",
+          "fields": [
+            {
+              "key": "cadastral_document_reference",
+              "label": "Ссылка/номер кадастрового документа",
+              "type": "text",
+              "topic": "stage2"
+            },
+            {
+              "key": "veterinary_certificate_reference",
+              "label": "Ссылка/номер ветеринарного свидетельства",
+              "type": "text",
+              "topic": "stage2"
+            },
+            {
+              "key": "business_plan_reference",
+              "label": "Ссылка/номер бизнес-плана",
+              "type": "text",
+              "topic": "stage2"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "rules": [
+    {
+      "target": "purchase_average_price",
+      "effect": "hide",
+      "when": {
+        "op": "ne",
+        "args": [
+          "$funding_purpose",
+          "Приобретение скота"
+        ]
+      }
+    },
+    {
+      "target": "purchase_average_price",
+      "effect": "require",
+      "when": {
+        "op": "eq",
+        "args": [
+          "$funding_purpose",
+          "Приобретение скота"
+        ]
+      }
+    },
+    {
+      "target": "construction_object_type",
+      "effect": "hide",
+      "when": {
+        "op": "ne",
+        "args": [
+          "$funding_purpose",
+          "Строительство и модернизация помещений"
+        ]
+      }
+    },
+    {
+      "target": "construction_object_type",
+      "effect": "require",
+      "when": {
+        "op": "eq",
+        "args": [
+          "$funding_purpose",
+          "Строительство и модернизация помещений"
+        ]
+      }
+    },
+    {
+      "target": "working_capital_purpose",
+      "effect": "hide",
+      "when": {
+        "op": "ne",
+        "args": [
+          "$funding_purpose",
+          "Пополнение оборотных средств"
+        ]
+      }
+    },
+    {
+      "target": "working_capital_purpose",
+      "effect": "require",
+      "when": {
+        "op": "eq",
+        "args": [
+          "$funding_purpose",
+          "Пополнение оборотных средств"
+        ]
+      }
+    },
+    {
+      "target": "subsidy_program_reference",
+      "effect": "hide",
+      "when": {
+        "op": "eq",
+        "args": [
+          "$has_state_subsidy_support",
+          false
+        ]
+      }
+    },
+    {
+      "target": "subsidy_program_reference",
+      "effect": "require",
+      "when": {
+        "op": "eq",
+        "args": [
+          "$has_state_subsidy_support",
+          true
+        ]
+      }
+    },
+    {
+      "target": "kh_registration_certificate",
+      "effect": "hide",
+      "when": {
+        "op": "ne",
+        "args": [
+          "$applicant_type",
+          "КХ"
+        ]
+      }
+    },
+    {
+      "target": "kh_registration_certificate",
+      "effect": "require",
+      "when": {
+        "op": "eq",
+        "args": [
+          "$applicant_type",
+          "КХ"
+        ]
+      }
+    },
+    {
+      "target": "ip_registration_certificate",
+      "effect": "hide",
+      "when": {
+        "op": "ne",
+        "args": [
+          "$applicant_type",
+          "ИП"
+        ]
+      }
+    },
+    {
+      "target": "ip_registration_certificate",
+      "effect": "require",
+      "when": {
+        "op": "eq",
+        "args": [
+          "$applicant_type",
+          "ИП"
+        ]
+      }
+    },
+    {
+      "target": "too_or_spk_charter",
+      "effect": "hide",
+      "when": {
+        "op": "not",
+        "args": [
+          {
+            "op": "in",
+            "args": [
+              "$applicant_type",
+              [
+                "ТОО",
+                "СПК"
+              ]
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "target": "too_or_spk_charter",
+      "effect": "require",
+      "when": {
+        "op": "in",
+        "args": [
+          "$applicant_type",
+          [
+            "ТОО",
+            "СПК"
+          ]
+        ]
+      }
+    }
+  ],
+  "computed": [
+    {
+      "key": "collateral_coverage_ratio",
+      "expression": {
+        "op": "round",
+        "args": [
+          {
+            "op": "div",
+            "args": [
+              "$collateral_value",
+              "$requested_amount"
+            ]
+          },
+          2
+        ]
+      }
+    }
+  ],
+  "integrations": [
+    "egov_idp",
+    "gbd_ul",
+    "ecp_sign",
+    "bpm"
+  ]
+}
