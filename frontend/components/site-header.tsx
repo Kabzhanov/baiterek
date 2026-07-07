@@ -1,0 +1,2 @@
+import Link from "next/link";
+export function SiteHeader(){return <header className="header"><div className="container header-inner"><Link className="brand" href="/take">Бәйтерек</Link><nav className="nav" aria-label="Основная навигация"><Link href="/take">Получить услугу</Link><Link href="/create">Конструктор</Link></nav></div></header>}
