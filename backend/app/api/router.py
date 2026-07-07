@@ -3,11 +3,12 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
-from app.api import admin, applications, definitions, integrations, services
+from app.api import admin, applications, cabinet, definitions, integrations, services
 
 api_router = APIRouter()
 api_router.include_router(services.router)
 api_router.include_router(applications.router)
+api_router.include_router(cabinet.router)
 api_router.include_router(integrations.router)
 api_router.include_router(admin.router)
 api_router.include_router(definitions.router)

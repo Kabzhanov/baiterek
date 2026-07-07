@@ -14,6 +14,8 @@ import { getMockUserId } from "./mock-user";
 import type {
   ApiErrorBody,
   ApplicationOut,
+  CabinetApplicationDetail,
+  CabinetListOut,
   Checkpoint,
   DraftPatchOut,
   ResumeOut,
@@ -93,6 +95,10 @@ export const applicationApi = {
       body: JSON.stringify(payload),
     }),
   resume: (applicationId: string) => call<ResumeOut>(`/v1/applications/${applicationId}/resume`),
+  // Личный кабинет (SPEC.md §4.4): список заявок пользователя и детальная карточка.
+  listApplications: () => call<CabinetListOut>("/v1/applications"),
+  getApplication: (applicationId: string) =>
+    call<CabinetApplicationDetail>(`/v1/applications/${applicationId}`),
   submit: (applicationId: string) =>
     call<SubmitOut>(`/v1/applications/${applicationId}/submit`, { method: "POST" }),
 };

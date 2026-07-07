@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -60,3 +61,45 @@ class SubmitOut(BaseModel):
     number: str
     status: str
     timeline: list
+
+
+class CabinetServiceInfo(BaseModel):
+    slug: str
+    title: str
+
+
+class CabinetApplicationItem(BaseModel):
+    id: uuid.UUID
+    number: str | None
+    status: str
+    service: CabinetServiceInfo
+    service_version: int
+    checkpoint: dict
+    # Заполненные видимые поля / все видимые поля, 0-100 (SPEC "Обязательное расширение" §2:
+    # «Заявка … заполнена на 60% — Продолжить»). Считается движком правил, см. cabinet.py.
+    progress_percent: int
+    # meta.labels_plain из Definition — человеческие подписи статусов для бейджей в ЛК.
+    labels_plain: dict[str, str]
+    updated_at: datetime
+
+
+class CabinetNotificationOut(BaseModel):
+    id: uuid.UUID
+    type: str
+    title: str
+    body: str
+    created_at: datetime
+    read_at: datetime | None
+
+
+class CabinetApplicationDetail(CabinetApplicationItem):
+    created_at: datetime
+    timeline: list
+    # Файловый контур ещё не реализован (IMPLEMENTATION_PLAN §8) — пока всегда пустой список,
+    # но поле уже в контракте, чтобы фронту не пришлось менять форму ответа позже.
+    documents: list
+    notifications: list[CabinetNotificationOut]
+
+
+class CabinetListOut(BaseModel):
+    items: list[CabinetApplicationItem]

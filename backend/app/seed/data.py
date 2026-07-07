@@ -110,6 +110,13 @@ _WORKING_CAPITAL_LOAN: dict[str, Any] = {
         "documents_checklist": ["Справка о гос. регистрации", "Финансовая отчетность за последний период"],
         "result": "Решение о кредитовании",
         "sla_days": 10,
+        "labels_plain": {
+            "draft": "Черновик",
+            "submitted": "Заявка отправлена",
+            "in_review_bpm": "Заявку рассматривает Даму",
+            "approved": "Кредит одобрен",
+            "rejected": "В кредите отказано",
+        },
     },
     "statuses": ["draft", "submitted", "in_review_bpm", "approved", "rejected"],
     "transitions": [
@@ -206,6 +213,13 @@ _EXPORT_GUARANTEE: dict[str, Any] = {
         "documents_checklist": ["Справка о гос. регистрации", "Экспортный контракт (при наличии)"],
         "result": "Решение о предоставлении гарантии",
         "sla_days": 15,
+        "labels_plain": {
+            "draft": "Черновик",
+            "submitted": "Заявка отправлена",
+            "in_review_bpm": "Заявку рассматривает KazakhExport",
+            "approved": "Гарантия одобрена",
+            "rejected": "В гарантии отказано",
+        },
     },
     "statuses": ["draft", "submitted", "in_review_bpm", "approved", "rejected"],
     "transitions": [

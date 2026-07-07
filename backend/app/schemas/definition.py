@@ -56,6 +56,9 @@ class Transition(BaseModel):
 class Meta(BaseModel):
     title: str
     description: str = ""
+    # Человеческие подписи статусов для ЛК (SPEC §3 "statuses.labels_plain", §4.4 статус-бейдж);
+    # статусы без подписи фронт показывает через свой fallback-словарь.
+    labels_plain: dict[str, str] = Field(default_factory=dict)
 
 class ServiceDefinition(BaseModel):
     model_config = ConfigDict(extra="forbid")

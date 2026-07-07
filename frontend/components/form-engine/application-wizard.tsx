@@ -521,10 +521,13 @@ export function ApplicationWizard({ slug }: { slug: string }) {
         <ol className="steps">
           <li>Организация рассматривает заявку в срок, указанный на карточке услуги.</li>
           <li>При необходимости запросит дополнительные документы.</li>
-          <li>Отслеживание статусов по заявкам появится в личном кабинете (в разработке).</li>
+          <li>Каждое изменение статуса видно в личном кабинете.</li>
         </ol>
         <div className="actions">
-          <Link className="button" href="/take">
+          <Link className="button" href="/take/cabinet">
+            В личный кабинет
+          </Link>
+          <Link className="button secondary" href="/take">
             К каталогу услуг
           </Link>
         </div>

@@ -25,7 +25,7 @@ export type ServiceDefinitionDoc = {
   schema_version: string;
   service_id: string;
   version: number;
-  meta: { title: string; description: string };
+  meta: { title: string; description: string; labels_plain?: Record<string, string> };
   stages: DefinitionStage[];
   rules: unknown[];
   computed: { key: string; expression: unknown }[];
@@ -94,6 +94,41 @@ export type SubmitOut = {
 };
 
 export type ApiErrorBody = { code: string; message: string; details: Record<string, unknown>; trace_id: string };
+
+// Личный кабинет (SPEC.md §4.4, "Обязательное расширение" §2) — зеркала
+// `CabinetApplicationItem`/`CabinetApplicationDetail` из backend/app/api/contracts.py.
+export type CabinetServiceInfo = { slug: string; title: string };
+
+export type CabinetApplicationItem = {
+  id: string;
+  number: string | null;
+  status: string;
+  service: CabinetServiceInfo;
+  service_version: number;
+  checkpoint: Checkpoint;
+  // Заполненные видимые поля / все видимые поля, 0-100 («заполнена на N%»).
+  progress_percent: number;
+  labels_plain: Record<string, string>;
+  updated_at: string;
+};
+
+export type CabinetListOut = { items: CabinetApplicationItem[] };
+
+export type CabinetNotification = {
+  id: string;
+  type: string;
+  title: string;
+  body: string;
+  created_at: string;
+  read_at: string | null;
+};
+
+export type CabinetApplicationDetail = CabinetApplicationItem & {
+  created_at: string;
+  timeline: { status: string; at: string; event: string }[];
+  documents: unknown[]; // файловый контур ещё не реализован — приходит пустым
+  notifications: CabinetNotification[];
+};
 
 export type ServiceSummaryOut = {
   id: string;
