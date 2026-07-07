@@ -49,7 +49,7 @@ export default async function ServiceDetailPage({ params }: { params: Promise<{ 
               </p>
 
               <div className="actions">
-                <Link className="button" href="/take#intake">Подать заявку</Link>
+                <Link className="button" href={`/take/services/${slug}/apply`}>Подать заявку</Link>
               </div>
             </div>
 
