@@ -17,8 +17,11 @@ def test_money_formula_decimal_and_trace():
     assert value == Decimal("3.33") and trace
 
 def test_formula_rejects_zero_division_and_unknown_operation():
-    with pytest.raises(ValueError,match="zero"): evaluate_formula({"op":"div","args":[1,0]}, {})
-    with pytest.raises(ValueError,match="unknown"): evaluate_formula({"op":"exec","args":[]}, {})
+    with pytest.raises(ValueError,match="zero"):
+        evaluate_formula({"op":"div","args":[1,0]}, {})
+    with pytest.raises(ValueError,match="unknown"):
+        evaluate_formula({"op":"exec","args":[]}, {})
 
 def test_cycle_is_rejected():
-    with pytest.raises(ValueError,match="cycle"): topological_order({"a":{"b"},"b":{"a"}})
+    with pytest.raises(ValueError,match="cycle"):
+        topological_order({"a":{"b"},"b":{"a"}})

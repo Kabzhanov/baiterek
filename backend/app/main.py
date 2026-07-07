@@ -1,4 +1,6 @@
-import json, logging, uuid
+import json
+import logging
+import uuid
 from fastapi import Depends, FastAPI, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
@@ -14,7 +16,8 @@ class JsonFormatter(logging.Formatter):
     def format(self, record):
         return json.dumps({"level": record.levelname, "message": record.getMessage()})
 
-handler = logging.StreamHandler(); handler.setFormatter(JsonFormatter())
+handler = logging.StreamHandler()
+handler.setFormatter(JsonFormatter())
 logging.basicConfig(level=logging.INFO, handlers=[handler], force=True)
 app = FastAPI(title="Baiterek API")
 app.include_router(api_router, prefix="/api/v1")
@@ -61,8 +64,10 @@ async def trace_id(request: Request, call_next):
     return response
 
 @app.get("/health/live")
-async def live(): return {"status": "ok"}
+async def live():
+    return {"status": "ok"}
 
 @app.get("/health/ready")
 async def ready(db: AsyncSession = Depends(get_session)):
-    await db.execute(text("select 1")); return {"status": "ready"}
+    await db.execute(text("select 1"))
+    return {"status": "ready"}
