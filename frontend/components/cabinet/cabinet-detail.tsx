@@ -5,9 +5,11 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ApplicationApiError, applicationApi } from "@/lib/application-api";
+import { stageJustOpened } from "@/lib/stage-progress";
 import { nextSteps, statusLabel } from "@/lib/status-labels";
 import type { CabinetApplicationDetail } from "@/lib/application-types";
 import { formatCabinetDate } from "./cabinet-list";
+import { StageOpenBanner } from "./stage-open-banner";
 
 type Phase = "loading" | "unavailable" | "not_found" | "ready";
 
@@ -20,6 +22,10 @@ function formatMoment(iso: string): string {
 export function CabinetDetail({ applicationId }: { applicationId: string }) {
   const [phase, setPhase] = useState<Phase>("loading");
   const [detail, setDetail] = useState<CabinetApplicationDetail | null>(null);
+  // Многоэтапность (SPEC.md §4.3, требование 3) — см. cabinet-list.tsx для того же приёма:
+  // `CabinetApplicationDetail` не несёт completed_stages/stage_open, поэтому для одной
+  // конкретной заявки (уже открытой) дёргаем resume() лишний раз, только когда она не черновик.
+  const [stageOpenInfo, setStageOpenInfo] = useState<{ completedStages: string[]; stageOpen: boolean } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -42,6 +48,22 @@ export function CabinetDetail({ applicationId }: { applicationId: string }) {
       cancelled = true;
     };
   }, [applicationId]);
+
+  useEffect(() => {
+    if (phase !== "ready" || !detail || detail.status === "draft") return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const resumed = await applicationApi.resume(applicationId);
+        if (!cancelled) setStageOpenInfo({ completedStages: resumed.completed_stages, stageOpen: resumed.stage_open });
+      } catch {
+        // Не критично — просто не покажем баннер, ничего не ломаем.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [phase, detail, applicationId]);
 
   if (phase === "loading") {
     return <p className="muted">Загружаем заявку…</p>;
@@ -98,6 +120,10 @@ export function CabinetDetail({ applicationId }: { applicationId: string }) {
             Продолжить заполнение
           </Link>
         </p>
+      )}
+
+      {stageOpenInfo && stageJustOpened(stageOpenInfo.completedStages, stageOpenInfo.stageOpen) && (
+        <StageOpenBanner slug={detail.service.slug} applicationId={detail.id} />
       )}
 
       <div className="form-card">

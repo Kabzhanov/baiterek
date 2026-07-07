@@ -18,6 +18,7 @@ import type {
   CabinetListOut,
   Checkpoint,
   DraftPatchOut,
+  GbdUlOut,
   ResumeOut,
   ServiceSummaryOut,
   SubmitOut,
@@ -103,4 +104,7 @@ export const applicationApi = {
     call<CabinetApplicationDetail>(`/v1/applications/${applicationId}`),
   submit: (applicationId: string) =>
     call<SubmitOut>(`/v1/applications/${applicationId}/submit`, { method: "POST" }),
+  // Предзаполнение по БИН (SPEC.md §8/§3.2, "Обязательное расширение" §1). No auth needed
+  // server-side (mock directory lookup), but `call()` always sends X-User-Id anyway — harmless.
+  lookupGbdUl: (bin: string) => call<GbdUlOut>(`/v1/integrations/gbd-ul/${encodeURIComponent(bin)}`),
 };

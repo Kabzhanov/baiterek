@@ -8,20 +8,48 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { ApplicationApiError, applicationApi } from "@/lib/application-api";
 import { createDebouncedSaver, mergeAfterConflict, type FieldDelta } from "@/lib/draft-autosave";
+import { distributeGbdUlResponse, isGbdLookupTrigger, isGbdPrefillTarget, looksLikeBin } from "@/lib/gbd-ul-prefill";
 import { buildScreenPlan, fieldIndex, findPlanIndexByScreenKey, type PlanScreen } from "@/lib/screen-plan";
+import { buildStageProgress, classifyDraftError, isUnderReview } from "@/lib/stage-progress";
+import { nextSteps, statusLabel } from "@/lib/status-labels";
 import type {
+  CabinetApplicationDetail,
   Checkpoint,
   DefinitionField,
+  GbdUlOut,
   ScreenContract,
   ScreenValidationItem,
   ServiceDefinitionDoc,
   SubmitOut,
 } from "@/lib/application-types";
 
-type Phase = "loading" | "unavailable" | "service_not_found" | "active" | "review" | "submitting" | "success";
+type Phase =
+  | "loading"
+  | "unavailable"
+  | "service_not_found"
+  | "active"
+  | "review"
+  | "submitting"
+  | "success"
+  // Многоэтапность (SPEC.md §4.3, требование 1/2): текущий этап отправлен и закрыт для
+  // правки — сюда попадаем и при первой загрузке (resume вернул stage_open=false для
+  // не-черновика), и посреди сессии (409 stage_locked на PATCH — см. lib/stage-progress.ts).
+  | "under_review";
 type SaveStatus = "idle" | "saving" | "saved" | "error";
+type GbdLookupState = { status: "idle" | "loading" | "success" | "error"; result: GbdUlOut | null; triggerKey: string | null };
 
-export function ApplicationWizard({ slug }: { slug: string }) {
+function formatReviewMoment(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "";
+  return `${date.toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric" })}, ${date.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })}`;
+}
+
+// `applicationId` (SPEC.md §4.3 "Многоэтапность"): при переходе из личного кабинета по
+// баннеру «Этап I одобрен — продолжить этап II» мастер должен резюмировать РОВНО эту
+// заявку, а не идемпотентный create-or-find-draft по slug — тот ищет только заявки со
+// статусом "draft" (см. app/take/services/[slug]/apply/page.tsx docstring) и не найдёт
+// заявку, чей статус уже продвинулся дальше черновика.
+export function ApplicationWizard({ slug, applicationId }: { slug: string; applicationId?: string }) {
   const [phase, setPhase] = useState<Phase>("loading");
   const [definition, setDefinition] = useState<ServiceDefinitionDoc | null>(null);
   const [plan, setPlan] = useState<PlanScreen[]>([]);
@@ -34,9 +62,23 @@ export function ApplicationWizard({ slug }: { slug: string }) {
   const [submitErrors, setSubmitErrors] = useState<ScreenValidationItem[] | null>(null);
   const [submitResult, setSubmitResult] = useState<SubmitOut | null>(null);
 
+  // Многоэтапность (см. `Phase` docstring выше).
+  const [status, setStatus] = useState<string>("draft");
+  const [completedStages, setCompletedStages] = useState<string[]>([]);
+  const [reviewDetail, setReviewDetail] = useState<CabinetApplicationDetail | null>(null);
+
+  // Предзаполнение по БИН (SPEC.md §3.2/§8, "Обязательное расширение" §1).
+  const [gbdLookup, setGbdLookup] = useState<GbdLookupState>({ status: "idle", result: null, triggerKey: null });
+  // Целевые поля, заполненные из ГБД ЮЛ и пока не тронутые вручную — рендерятся свёрнутой
+  // сводкой вместо самих себя (требование 4), пока не нажали «Изменить».
+  const [profileSourcedKeys, setProfileSourcedKeys] = useState<Set<string>>(new Set());
+
   const applicationIdRef = useRef<string | null>(null);
   const revisionRef = useRef(1);
   const planRef = useRef<PlanScreen[]>([]);
+  // Последнее значение, для которого уже пытались (успешно или нет) сделать lookup —
+  // не долбим ГБД ЮЛ на каждый keystroke/повторный blur одного и того же БИН.
+  const gbdLookupSeenRef = useRef<string | null>(null);
 
   const fieldIndexMap = useMemo<Map<string, DefinitionField>>(
     () => (definition ? fieldIndex(definition) : new Map()),
@@ -72,18 +114,59 @@ export function ApplicationWizard({ slug }: { slug: string }) {
     setSavedAt(new Date());
   }
 
+  // Отдельная заявка на рассмотрении (SPEC.md §4.3, требование 2): 409 `stage_locked`
+  // означает «сюда сейчас нельзя», а не гонку редактирования — resume() освежает
+  // status/completedStages для честного экрана, а таймлайн подтягивает loadReviewDetail().
+  // Ничего из `data` не трогаем и не теряем: правка просто больше не уходит на сервер.
+  async function enterUnderReview(id: string) {
+    saverRef.current.cancel();
+    try {
+      const fresh = await applicationApi.resume(id);
+      setStatus(fresh.status);
+      setCompletedStages(fresh.completed_stages);
+    } catch {
+      // Бэк недоступен прямо сейчас — всё равно показываем «на рассмотрении» на основе
+      // того, что уже знаем (эта заявка точно не в статусе "draft", раз стадия закрыта).
+    }
+    setPhase("under_review");
+    setSaveStatus("idle");
+    void loadReviewDetail(id);
+  }
+
+  async function loadReviewDetail(id: string) {
+    try {
+      const detail = await applicationApi.getApplication(id);
+      setReviewDetail(detail);
+    } catch {
+      setReviewDetail(null);
+    }
+  }
+
   // 409 revision_conflict: a stale `expected_revision` never overwrites a newer save
   // server-side, so instead of losing the applicant's edits we re-fetch the authoritative
   // state and replay exactly the edits from the failed attempt on top of it, then retry
   // once with the fresh revision (SPEC.md §2: "сервер… возвращает актуальную ревизию").
+  //
+  // 409 stage_locked is a *different* failure (SPEC.md §4.3, требование 2): the current
+  // stage was already submitted while we were editing (e.g. a second tab). Retrying the
+  // same merge-and-resend recipe would just 409 again — instead we stop trying to save
+  // this stage and show the "на рассмотрении" screen (`enterUnderReview`), which is also
+  // how the retry below reacts if the race lands exactly on the resend.
   async function recoverFromSaveError(err: unknown, delta: FieldDelta, navigationCheckpoint: Checkpoint | null) {
     const id = applicationIdRef.current;
-    if (id && err instanceof ApplicationApiError && err.status === 409) {
+    const kind = classifyDraftError(err);
+    if (id && kind === "stage_locked") {
+      await enterUnderReview(id);
+      return;
+    }
+    if (id && kind === "revision_conflict") {
       try {
         const fresh = await applicationApi.resume(id);
         setData(() => mergeAfterConflict(fresh.data, delta));
         revisionRef.current = fresh.revision;
         setScreen(fresh.screen);
+        setCompletedStages(fresh.completed_stages);
+        setStatus(fresh.status);
         setCurrentPlanIndex(findPlanIndexByScreenKey(planRef.current, fresh.checkpoint.screen_key));
         setSaveStatus("saving");
         const retry = await applicationApi.patchDraft(id, {
@@ -93,7 +176,11 @@ export function ApplicationWizard({ slug }: { slug: string }) {
         });
         applyPatchResult(retry.revision, retry.checkpoint, retry.screen);
         return;
-      } catch {
+      } catch (retryErr) {
+        if (classifyDraftError(retryErr) === "stage_locked") {
+          await enterUnderReview(id);
+          return;
+        }
         setSaveStatus("error");
         return;
       }
@@ -108,9 +195,15 @@ export function ApplicationWizard({ slug }: { slug: string }) {
     let cancelled = false;
     (async () => {
       try {
-        const service = await applicationApi.getService(slug);
-        const created = await applicationApi.createApplication(service.id);
-        const resumed = await applicationApi.resume(created.id);
+        // См. `applicationId` docstring на компоненте: обходим create-or-find-draft, если
+        // кабинет уже прислал точный id заявки (переход по баннеру «этап II открылся»).
+        const resumed = applicationId
+          ? await applicationApi.resume(applicationId)
+          : await (async () => {
+              const service = await applicationApi.getService(slug);
+              const created = await applicationApi.createApplication(service.id);
+              return applicationApi.resume(created.id);
+            })();
         if (cancelled) return;
         const builtPlan = buildScreenPlan(resumed.definition);
         applicationIdRef.current = resumed.id;
@@ -120,8 +213,15 @@ export function ApplicationWizard({ slug }: { slug: string }) {
         setPlan(builtPlan);
         setData(resumed.data);
         setScreen(resumed.screen);
+        setStatus(resumed.status);
+        setCompletedStages(resumed.completed_stages);
         setCurrentPlanIndex(findPlanIndexByScreenKey(builtPlan, resumed.checkpoint.screen_key));
-        setPhase("active");
+        if (isUnderReview(resumed.status, resumed.stage_open)) {
+          setPhase("under_review");
+          void loadReviewDetail(resumed.id);
+        } else {
+          setPhase("active");
+        }
       } catch (err) {
         if (cancelled) return;
         if (err instanceof ApplicationApiError && err.status === 404) {
@@ -134,7 +234,7 @@ export function ApplicationWizard({ slug }: { slug: string }) {
     return () => {
       cancelled = true;
     };
-  }, [slug]);
+  }, [slug, applicationId]);
 
   // Flush pending edits when the tab loses focus/visibility and on unmount — "гарантированное
   // сохранение… при потере фокуса вкладки" (SPEC.md §2).
@@ -160,6 +260,42 @@ export function ApplicationWizard({ slug }: { slug: string }) {
     });
     saverRef.current.schedule({ [key]: value });
     setSaveStatus("saving");
+    maybeRunGbdLookup(key, value);
+  }
+
+  // Предзаполнение по БИН (SPEC.md §3.2/§8, требования 4/7): срабатывает только на поле-
+  // триггер (`prefill: "gbd_ul.lookup"`) и только когда значение уже похоже на полный БИН —
+  // не блокирует остальные поля и не дёргает справочник на каждую промежуточную цифру.
+  function maybeRunGbdLookup(key: string, value: unknown) {
+    const def = fieldIndexMap.get(key);
+    if (!def || !isGbdLookupTrigger(def.prefill) || !looksLikeBin(value)) return;
+    const binValue = String(value).trim();
+    if (gbdLookupSeenRef.current === binValue) return;
+    gbdLookupSeenRef.current = binValue;
+    void runGbdLookup(key, binValue);
+  }
+
+  async function runGbdLookup(triggerKey: string, binValue: string) {
+    setGbdLookup({ status: "loading", result: null, triggerKey });
+    try {
+      const result = await applicationApi.lookupGbdUl(binValue);
+      setGbdLookup({ status: "success", result, triggerKey });
+      const targets = distributeGbdUlResponse([...fieldIndexMap.values()], result);
+      const keys = Object.keys(targets);
+      if (keys.length > 0) {
+        for (const key of keys) updateField(key, targets[key]);
+        setProfileSourcedKeys((prev) => new Set([...prev, ...keys]));
+      }
+    } catch {
+      // Требование 7: справочник недоступен/БИН не найден — не блокируем ручное заполнение,
+      // только показываем мягкую подсказку рядом с полем-триггером (см. renderGbdStatusHint).
+      setGbdLookup({ status: "error", result: null, triggerKey });
+    }
+  }
+
+  // Требование 4: «Изменить» разворачивает свёрнутую сводку обратно в редактируемые поля.
+  function expandGbdFields() {
+    setProfileSourcedKeys(new Set());
   }
 
   function isEmpty(value: unknown): boolean {
@@ -170,6 +306,7 @@ export function ApplicationWizard({ slug }: { slug: string }) {
     const def = fieldIndexMap.get(key);
     const field = screen?.fields.find((f) => f.key === key);
     if (!def || !field || !field.visible) return;
+    maybeRunGbdLookup(key, data[key]);
     const value = data[key];
     let message: string | null = null;
     if (field.required && isEmpty(value)) {
@@ -417,11 +554,77 @@ export function ApplicationWizard({ slug }: { slug: string }) {
         <label htmlFor={field.key}>
           {label}
           {field.required && " *"}
+          {/* Требование 6: подсказка раскрывается рядом с полем по «?», не отдельной страницей. */}
+          {def?.hint && (
+            <details className="field-hint">
+              <summary aria-label={`Подсказка к полю «${label}»`}>?</summary>
+              <p>{def.hint}</p>
+            </details>
+          )}
         </label>
         {control}
+        {isGbdLookupTrigger(def?.prefill) && renderGbdStatusHint()}
         {error && <small role="alert">{error}</small>}
       </div>
     );
+  }
+
+  // Требования 4/5/7: пока поле-триггер грузит ответ ГБД ЮЛ — тихий индикатор рядом с
+  // полем; если lookup не удался (справочник недоступен или БИН не найден) — мягкая
+  // подсказка, что можно заполнить дальше вручную (никакой блокировки формы).
+  function renderGbdStatusHint() {
+    if (gbdLookup.status === "loading") return <small className="muted">Ищем данные компании в ГБД ЮЛ…</small>;
+    if (gbdLookup.status === "error")
+      return <small className="muted">Не удалось подтянуть данные автоматически — заполните поля ниже вручную.</small>;
+    return null;
+  }
+
+  // Требование 4 ("Обязательное расширение" §1): вместо «голых» целевых полей ГБД ЮЛ —
+  // одна свёрнутая сводка на всю группу, с кнопкой «Изменить» для возврата к правке.
+  // Требование 5: бейдж-дисклеймер mock-источника — тем же классом `.mock`, что и у
+  // остальных имитаций (см. SPEC.md §8 / renderField submitErrors block above).
+  function renderGbdSummary(key: string) {
+    const result = gbdLookup.result;
+    if (!result) return null;
+    return (
+      <div className="field" key={`gbd-summary-${key}`}>
+        <label>Данные компании</label>
+        <div className="computed-field">
+          <strong>
+            {result.name}, БИН {result.bin}, {result.address}
+          </strong>
+          {result.mock && (
+            <div className="mock" role="note">
+              {result.disclaimer}
+            </div>
+          )}
+          <div className="actions">
+            <button type="button" className="button secondary" onClick={expandGbdFields}>
+              Изменить
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Требование 4: рендерит экран, сворачивая целевые поля ГБД ЮЛ (`profileSourcedKeys`) в
+  // одну сводку вместо того, чтобы показывать каждое из них как обычное поле формы.
+  function renderScreenFields(fields: ScreenContract["fields"]) {
+    const nodes: React.ReactNode[] = [];
+    let summaryShown = false;
+    for (const field of fields) {
+      const def = fieldIndexMap.get(field.key);
+      if (field.visible && isGbdPrefillTarget(def?.prefill) && profileSourcedKeys.has(field.key)) {
+        if (!summaryShown) {
+          nodes.push(renderGbdSummary(field.key));
+          summaryShown = true;
+        }
+        continue;
+      }
+      nodes.push(renderField(field));
+    }
+    return nodes;
   }
 
   function renderSaveIndicator() {
@@ -475,6 +678,33 @@ export function ApplicationWizard({ slug }: { slug: string }) {
     );
   }
 
+  // Требование 1: прогресс ПО ЭТАПАМ (этап I ✓ завершён, этап II — текущий), отдельно от
+  // renderLevels() (шаги/экраны внутри текущего этапа). Однoэтапные услуги — как раньше:
+  // при одном этапе список из одного пункта не добавляет пользы, скрываем его.
+  function renderStageProgress() {
+    if (!definition || definition.stages.length <= 1) return null;
+    const currentStageKey = plan[currentPlanIndex]?.stageKey ?? null;
+    const items = buildStageProgress(
+      definition.stages.map((s) => ({ key: s.key, title: s.title })),
+      completedStages,
+      currentStageKey,
+    );
+    return (
+      <>
+        <h3>Этапы заявки</h3>
+        <ol className="levels" aria-label="Этапы заявки">
+          {items.map((item) => (
+            <li key={item.key} data-state={item.state}>
+              <span>
+                <span aria-hidden>{item.state === "done" ? "✓" : item.state === "current" ? "●" : "○"}</span> {item.title}
+              </span>
+            </li>
+          ))}
+        </ol>
+      </>
+    );
+  }
+
   if (phase === "loading") {
     return (
       <div className="form-card">
@@ -502,11 +732,64 @@ export function ApplicationWizard({ slug }: { slug: string }) {
   if (phase === "service_not_found") {
     return (
       <div className="form-card">
-        <h2>Услуга не найдена</h2>
-        <p className="muted">Возможно, ссылка устарела или услуга была снята с публикации.</p>
-        <Link className="button secondary" href="/take">
-          К каталогу услуг
+        <h2>{applicationId ? "Заявка не найдена" : "Услуга не найдена"}</h2>
+        <p className="muted">
+          {applicationId
+            ? "Возможно, ссылка устарела или заявка принадлежит другому пользователю."
+            : "Возможно, ссылка устарела или услуга была снята с публикации."}
+        </p>
+        <Link className="button secondary" href={applicationId ? "/take/cabinet" : "/take"}>
+          {applicationId ? "К списку заявок" : "К каталогу услуг"}
         </Link>
+      </div>
+    );
+  }
+
+  if (phase === "under_review") {
+    return (
+      <div className="form-shell">
+        <div>
+          <span className="pill">{statusLabel(status, reviewDetail?.labels_plain)}</span>
+          <h1>{definition?.meta.title ?? reviewDetail?.service.title}</h1>
+          {reviewDetail?.number && <p className="muted">Заявка № {reviewDetail.number}</p>}
+          <p className="lead">
+            Этот этап заявки уже отправлен и рассматривается организацией — форма недоступна для правки, пока не будет
+            решения. Ничего из введённого раньше не потеряно.
+          </p>
+          <div className="form-card">
+            <h2>История заявки</h2>
+            {reviewDetail ? (
+              <ol className="steps">
+                <li>
+                  <strong>Черновик создан</strong>
+                  <span className="muted"> — {formatReviewMoment(reviewDetail.created_at)}</span>
+                </li>
+                {reviewDetail.timeline.map((entry, i) => (
+                  <li key={`${entry.status}-${i}`}>
+                    <strong>{statusLabel(entry.status, reviewDetail.labels_plain)}</strong>
+                    <span className="muted"> — {formatReviewMoment(entry.at)}</span>
+                  </li>
+                ))}
+              </ol>
+            ) : (
+              <p className="muted">История временно недоступна — попробуйте обновить страницу через минуту.</p>
+            )}
+          </div>
+          <div className="form-card">
+            <h2>Что дальше</h2>
+            <ol className="steps">
+              {nextSteps(status).map((step, i) => (
+                <li key={i}>{step}</li>
+              ))}
+            </ol>
+          </div>
+          <div className="actions">
+            <Link className="button" href="/take/cabinet">
+              В личный кабинет
+            </Link>
+          </div>
+        </div>
+        {definition && definition.stages.length > 1 && <aside className="card">{renderStageProgress()}</aside>}
       </div>
     );
   }
@@ -522,6 +805,12 @@ export function ApplicationWizard({ slug }: { slug: string }) {
           <li>Организация рассматривает заявку в срок, указанный на карточке услуги.</li>
           <li>При необходимости запросит дополнительные документы.</li>
           <li>Каждое изменение статуса видно в личном кабинете.</li>
+          {definition && definition.stages.length > 1 && (
+            <li>
+              Если по услуге несколько этапов, следующий этап откроется в этой же заявке — сразу после того, как
+              организация одобрит текущий.
+            </li>
+          )}
         </ol>
         <div className="actions">
           <Link className="button" href="/take/cabinet">
@@ -550,7 +839,7 @@ export function ApplicationWizard({ slug }: { slug: string }) {
             <p className="muted">
               Шаг {currentPlan.stepIndex + 1} · этап «{currentPlan.stageTitle}»
             </p>
-            {screen.fields.map((field) => renderField(field))}
+            {renderScreenFields(screen.fields)}
             <div className="actions">
               {currentPlanIndex > 0 && (
                 <button type="button" className="button secondary" onClick={() => goToScreen(currentPlanIndex - 1)}>
@@ -614,7 +903,10 @@ export function ApplicationWizard({ slug }: { slug: string }) {
           </div>
         )}
       </div>
-      <aside className="card">{renderLevels()}</aside>
+      <aside className="card">
+        {renderStageProgress()}
+        {renderLevels()}
+      </aside>
     </div>
   );
 }

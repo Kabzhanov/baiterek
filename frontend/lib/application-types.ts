@@ -16,6 +16,11 @@ export type DefinitionField = {
   minimum?: number | null;
   maximum?: number | null;
   options?: string[];
+  // Предзаполнение по БИН (SPEC.md §3.2, "Обязательное расширение" §1) — см.
+  // `backend/app/schemas/definition.py::FieldBase` for the "gbd_ul.lookup" /
+  // "gbd_ul.<attr>" convention this mirrors. `hint` is independent free-text help.
+  prefill?: string | null;
+  hint?: string | null;
 };
 
 export type DefinitionStep = { key: string; title: string; fields: DefinitionField[] };
@@ -41,6 +46,10 @@ export type ScreenField = {
   visible: boolean;
   required: boolean;
   enabled: boolean;
+  // Всегда присутствуют в ответе (`backend/app/api/screen.py`/`app/engine/runtime.render()`
+  // ferry both through unconditionally) — `null` when the Definition field carries none.
+  prefill: string | null;
+  hint: string | null;
 };
 
 export type ScreenValidationItem = { field?: string | null; code: string; message?: string };
@@ -84,13 +93,25 @@ export type ResumeOut = {
   checkpoint: Checkpoint;
   definition: ServiceDefinitionDoc;
   screen: ScreenContract;
+  // Многоэтапность (SPEC.md §4.3, "Обязательное расширение" контракт A): ключи уже
+  // отправленных этапов и признак, что этап, на который сейчас указывает checkpoint,
+  // ещё открыт для правки. См. lib/stage-progress.ts для чистой логики поверх этого.
+  completed_stages: string[];
+  stage_open: boolean;
 };
+
+// `event: "submitted"` несёт `stage` (какой этап отправлен); `event: "admin_status_change"`
+// несёт `comment`; `event: "stage_opened"` несёт `stage` (какой этап открылся). Все три
+// формы делят один и тот же JSON-блоб `application.timeline` на бэке — оба свойства
+// оставляем опциональными, а не заводим union, т.к. вызывающий код читает конкретное поле
+// только когда оно осмысленно (SubmitOut.timeline — `stage`, см. application-wizard.tsx).
+export type TimelineEntry = { status: string; at: string; event: string; stage?: string | null; comment?: string | null };
 
 export type SubmitOut = {
   id: string;
   number: string;
   status: string;
-  timeline: { status: string; at: string; event: string }[];
+  timeline: TimelineEntry[];
 };
 
 export type ApiErrorBody = { code: string; message: string; details: Record<string, unknown>; trace_id: string };
@@ -125,9 +146,23 @@ export type CabinetNotification = {
 
 export type CabinetApplicationDetail = CabinetApplicationItem & {
   created_at: string;
-  timeline: { status: string; at: string; event: string }[];
+  timeline: TimelineEntry[];
   documents: unknown[]; // файловый контур ещё не реализован — приходит пустым
   notifications: CabinetNotification[];
+};
+
+// Mock ГБД ЮЛ (SPEC.md §8) — зеркало `backend/app/api/integrations.py::GbdUlOut`.
+// Предзаполнение по БИН распределяет эти поля по целевым полям экрана, см.
+// lib/gbd-ul-prefill.ts.
+export type GbdUlOut = {
+  bin: string;
+  name: string;
+  oked: string;
+  oked_name: string;
+  address: string;
+  director: string;
+  mock: boolean;
+  disclaimer: string;
 };
 
 export type ServiceSummaryOut = {
