@@ -26,7 +26,7 @@ class ServiceDefinition(UUIDPkMixin, TimestampMixin, Base):
     service_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False, server_default=text("gen_random_uuid()"))
     org_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("organizations.id", ondelete="RESTRICT"), nullable=False)
     slug: Mapped[str] = mapped_column(String(128), nullable=False)
-    status: Mapped[ServiceStatus] = mapped_column(Enum(ServiceStatus, name="service_status", native_enum=True), nullable=False, server_default=ServiceStatus.DRAFT.value)
+    status: Mapped[ServiceStatus] = mapped_column(Enum(ServiceStatus, name="service_status", native_enum=True, values_callable=lambda e: [x.value for x in e]), nullable=False, server_default=ServiceStatus.DRAFT.value)
     version: Mapped[int] = mapped_column(Integer, nullable=False, server_default="1")
     definition: Mapped[dict] = mapped_column(JSONB, nullable=False)
     created_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))

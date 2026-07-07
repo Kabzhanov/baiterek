@@ -16,7 +16,7 @@ class AnalyticsMaterial(UUIDPkMixin, TimestampMixin, Base):
     __tablename__ = "analytics_materials"
 
     org_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False)
-    type: Mapped[AnalyticsMaterialType] = mapped_column(Enum(AnalyticsMaterialType, name="analytics_material_type", native_enum=True), nullable=False)
+    type: Mapped[AnalyticsMaterialType] = mapped_column(Enum(AnalyticsMaterialType, name="analytics_material_type", native_enum=True, values_callable=lambda e: [x.value for x in e]), nullable=False)
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[str | None] = mapped_column(Text)
     source: Mapped[str | None] = mapped_column(String(255))

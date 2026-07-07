@@ -15,7 +15,7 @@ class KnowledgeItem(UUIDPkMixin, TimestampMixin, Base):
     """Инструменты и материалы для бизнеса (SPEC §4.7): база знаний, шаблоны, чек-листы, калькуляторы, обзоры."""
     __tablename__ = "knowledge_items"
 
-    category: Mapped[KnowledgeItemCategory] = mapped_column(Enum(KnowledgeItemCategory, name="knowledge_item_category", native_enum=True), nullable=False)
+    category: Mapped[KnowledgeItemCategory] = mapped_column(Enum(KnowledgeItemCategory, name="knowledge_item_category", native_enum=True, values_callable=lambda e: [x.value for x in e]), nullable=False)
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[str | None] = mapped_column(Text)
     content: Mapped[str | None] = mapped_column(Text)
