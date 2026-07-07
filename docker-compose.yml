@@ -26,6 +26,8 @@ services:
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       SECRET_KEY: ${SECRET_KEY:?set SECRET_KEY in .env}
       LLM_API_KEY: ${LLM_API_KEY:-}
+      # Демо-стенд без логинов: любой посетитель работает и в /take, и в /create (см. config.py).
+      BAITEREK_OPEN_ACCESS: ${BAITEREK_OPEN_ACCESS:-1}
     depends_on:
       postgres: {condition: service_healthy}
     healthcheck:

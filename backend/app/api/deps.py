@@ -10,9 +10,11 @@ import uuid
 
 from fastapi import Depends, Header
 from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.errors import ApiError
+from app.config import settings
 from app.db import get_session
 from app.models import User, UserRole
 
@@ -29,6 +31,17 @@ async def get_current_user_id(
         raise ApiError(401, "unauthorized", "X-User-Id must be a UUID", {}) from exc
     known = await session.scalar(select(User.id).where(User.id == user_id))
     if known is None:
+        if settings().open_access:
+            # Демо-режим «без логинов»: первый визит браузера приносит новый случайный
+            # UUID — заводим под него пользователя, чтобы черновики/кабинет/заявки
+            # работали без входа, сохраняя изоляцию по браузеру (SPEC.md §8).
+            await session.execute(
+                insert(User)
+                .values(id=user_id, iin_bin=user_id.hex[:12], role=UserRole.ENTREPRENEUR, profile={})
+                .on_conflict_do_nothing(index_elements=[User.id])
+            )
+            await session.commit()
+            return user_id
         raise ApiError(401, "unauthorized", "unknown user", {})
     return user_id
 
@@ -47,6 +60,10 @@ def require_role(*roles: UserRole):
         user_id: uuid.UUID = Depends(get_current_user_id),
         session: AsyncSession = Depends(get_session),
     ) -> uuid.UUID:
+        if settings().open_access:
+            # Демо-режим «без логинов»: административный контур (/create, смена статусов)
+            # открыт всем без роли. Возвращаем id уже автозаведённого пользователя.
+            return user_id
         role = await session.scalar(select(User.role).where(User.id == user_id))
         if role not in roles:
             raise ApiError(
