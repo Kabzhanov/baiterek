@@ -36,6 +36,7 @@
       "submitted": "Заявка отправлена",
       "in_review_bpm": "Заявку рассматривает БРК",
       "indicative_approved": "Индикативно одобрено — доступен II этап",
+      "financing_approved": "Финансирование одобрено",
       "rejected": "В финансировании отказано"
     },
     "intake_mapping": {
@@ -58,6 +59,7 @@
     "submitted",
     "in_review_bpm",
     "indicative_approved",
+    "financing_approved",
     "rejected"
   ],
   "transitions": [
@@ -76,6 +78,10 @@
     {
       "source": "in_review_bpm",
       "target": "rejected"
+    },
+    {
+      "source": "indicative_approved",
+      "target": "financing_approved"
     }
   ],
   "stages": [
@@ -289,6 +295,7 @@
               "key": "audited_financials_reference",
               "label": "Ссылка/номер аудированной фин. отчетности",
               "type": "text",
+              "required": true,
               "topic": "stage2"
             },
             {
@@ -296,6 +303,7 @@
               "label": "Выручка за последний год, ₸",
               "type": "number",
               "minimum": 0,
+              "required": true,
               "topic": "stage2"
             },
             {
@@ -320,6 +328,7 @@
                 "Банковская гарантия",
                 "Иное"
               ],
+              "required": true,
               "topic": "stage2"
             },
             {

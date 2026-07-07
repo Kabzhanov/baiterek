@@ -55,6 +55,11 @@ class ResumeOut(BaseModel):
     checkpoint: dict
     definition: dict
     screen: dict
+    # SPEC.md §4.3 "Многоэтапность" (docs/IMPLEMENTATION_PLAN.md §7): stage keys already
+    # submitted, and whether the stage `checkpoint` currently points at is still open for
+    # editing — see app/api/applications._stage_open. Appended, not replacing anything.
+    completed_stages: list[str] = Field(default_factory=list)
+    stage_open: bool = True
 
 
 class SubmitOut(BaseModel):

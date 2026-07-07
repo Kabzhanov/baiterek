@@ -76,6 +76,21 @@ async def _get_owned_application(
     return application
 
 
+def _stage_open(application: Application, definition: ServiceDefinitionSchema) -> bool:
+    """SPEC.md §4.3 "Многоэтапность": a stage is open for editing while its key has not
+    yet been submitted. Deliberately reads `application.checkpoint` — the *stored*
+    position, not any `checkpoint` override a PATCH payload might request — so once
+    stage I is submitted the applicant cannot PATCH their way into stage II's fields
+    before an admin approval has advanced the stored checkpoint there (see
+    `app/api/admin.py`'s `change_application_status`, which is the only thing that
+    moves `checkpoint` onto a later stage)."""
+    if not definition.stages:
+        return True
+    stage_index, _step_index, _screen_index = resolve_indices(definition, application.checkpoint)
+    stage_key = definition.stages[stage_index].key
+    return stage_key not in (application.completed_stages or [])
+
+
 async def _find_active_draft(
     session: AsyncSession, user_id: uuid.UUID, service_id: uuid.UUID
 ) -> Application | None:
@@ -159,10 +174,17 @@ async def patch_draft(
 ) -> DraftPatchOut:
     """Incremental autosave (SPEC.md "Обязательное расширение" §2). A stale
     `expected_revision` never overwrites a newer save — it returns 409 with the
-    current revision instead."""
+    current revision instead.
+
+    SPEC.md §4.3 "Многоэтапность": allowed whenever `_stage_open` holds, which is true
+    for a plain single-stage draft exactly as before, and for a multi-stage service's
+    later stages once an admin approval has opened them (status by then is no longer
+    literally "draft", e.g. "indicative_approved" — see `app/api/admin.py`)."""
     application = await _get_owned_application(session, application_id, user_id)
-    if application.status != "draft":
-        raise ApiError(409, "application_not_draft", "Application is no longer editable", {"status": application.status})
+    definition_row = await _load_definition_row(session, application.service_id, application.service_version)
+    definition = _parse_definition(definition_row)
+    if not _stage_open(application, definition):
+        raise ApiError(409, "stage_locked", "This stage was already submitted and is no longer editable", {"status": application.status})
     if payload.expected_revision != application.revision:
         raise ApiError(
             409,
@@ -170,9 +192,6 @@ async def patch_draft(
             "Draft was modified by another request",
             {"current_revision": application.revision},
         )
-
-    definition_row = await _load_definition_row(session, application.service_id, application.service_version)
-    definition = _parse_definition(definition_row)
 
     merged_data = {**application.data, **payload.data_delta}
     requested_checkpoint = {**application.checkpoint, **(payload.checkpoint or {})}
@@ -210,6 +229,8 @@ async def resume_application(
         checkpoint=to_checkpoint(screen),
         definition=definition_row.definition,
         screen=screen,
+        completed_stages=list(application.completed_stages or []),
+        stage_open=_stage_open(application, definition),
     )
 
 
@@ -234,53 +255,78 @@ async def submit_application(
     session: AsyncSession = Depends(get_session),
 ) -> SubmitOut:
     """Full server-side validation, status transition, application number and
-    timeline event (SPEC.md §5 item 5). Never trusts client-side validation."""
-    application = await _get_owned_application(session, application_id, user_id)
-    if application.status != "draft":
-        raise ApiError(409, "application_not_draft", "Application was already submitted", {"status": application.status})
+    timeline event (SPEC.md §5 item 5). Never trusts client-side validation.
 
+    SPEC.md §4.3 "Многоэтапность" / docs/IMPLEMENTATION_PLAN.md §7: validates and
+    submits only the *current* stage (the one `application.checkpoint` points at), not
+    the whole Definition — a single-stage service still has exactly one stage, so this
+    is a no-op generalization for it. On success the current stage's key is recorded in
+    `completed_stages`; the application number is assigned once, on the very first
+    submit, and never reassigned on a later stage's submit.
+    """
+    application = await _get_owned_application(session, application_id, user_id)
     definition_row = await _load_definition_row(session, application.service_id, application.service_version)
     definition = _parse_definition(definition_row)
 
+    if not _stage_open(application, definition):
+        raise ApiError(409, "application_not_draft", "Application was already submitted", {"status": application.status})
+
+    stage_index, _step_index, _screen_index = resolve_indices(definition, application.checkpoint)
+    current_stage_key = definition.stages[stage_index].key if definition.stages else None
+
     try:
-        values, _explanations = compute(definition, application.data)
+        values, _explanations = compute(definition, application.data, partial=True)
     except ValueError as exc:
         # A computed formula still references a field the applicant never filled in —
         # that is itself an incomplete application, so report it the same way as a
-        # regular required-field validation error instead of a raw 500.
+        # regular required-field validation error instead of a raw 500. (`partial=True`
+        # above already tolerates formulas that only depend on a later, still-closed
+        # stage — this only fires for a genuine computation error, e.g. division by
+        # zero, or a missing dependency inside the *current* stage.)
         raise ApiError(
             422,
             "validation_failed",
             "Application data is incomplete or invalid",
             {"errors": [{"field": None, "code": "computation_failed", "message": str(exc)}]},
         ) from exc
-    errors = validate(definition, values, full=True)
+    errors = validate(definition, values, full=True, stage_key=current_stage_key)
     if errors:
         raise ApiError(422, "validation_failed", "Application data is incomplete or invalid", {"errors": errors})
 
     target = _pick_submit_target(definition, application.status, values)
     new_status = transition(definition, application.status, target, values)
 
-    def _apply_submission(app: Application, number: str) -> None:
-        app.number = number
+    def _apply_submission(app: Application, stage_key: str | None, number: str) -> None:
+        if app.number is None:
+            app.number = number
         app.status = new_status
+        if stage_key is not None and stage_key not in (app.completed_stages or []):
+            app.completed_stages = [*(app.completed_stages or []), stage_key]
         app.timeline = [
             *app.timeline,
-            {"status": new_status, "at": datetime.now(timezone.utc).isoformat(), "event": "submitted"},
+            {
+                "status": new_status,
+                "at": datetime.now(timezone.utc).isoformat(),
+                "event": "submitted",
+                "stage": stage_key,
+            },
         ]
 
-    number = await _next_application_number(session)
-    _apply_submission(application, number)
+    number = application.number or await _next_application_number(session)
+    _apply_submission(application, current_stage_key, number)
     try:
         await session.commit()
     except IntegrityError:
         # Number collision under a concurrent submit — rollback re-expires the instance,
-        # so re-fetching gives the pre-attempt state; regenerate the number once and retry.
+        # so re-fetching gives the pre-attempt state; regenerate the number once and retry
+        # (only if this application still has none — a later-stage submit never needs a
+        # new number, so this path is unreachable for it).
         await session.rollback()
         application = await _get_owned_application(session, application_id, user_id)
-        number = await _next_application_number(session)
-        _apply_submission(application, number)
+        number = application.number or await _next_application_number(session)
+        _apply_submission(application, current_stage_key, number)
         await session.commit()
 
     await session.refresh(application)
-    return SubmitOut(id=application.id, number=number, status=application.status, timeline=application.timeline)
+    assert application.number is not None  # guaranteed by _apply_submission above
+    return SubmitOut(id=application.id, number=application.number, status=application.status, timeline=application.timeline)

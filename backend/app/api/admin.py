@@ -94,6 +94,39 @@ async def change_application_status(
             "comment": payload.comment,
         },
     ]
+
+    # SPEC.md §4.3 "Многоэтапность" / docs/IMPLEMENTATION_PLAN.md §7 "approval этапа I
+    # открывает этап II": once the admin has moved the application to a non-terminal
+    # status, advance `checkpoint` onto the next stage that has not been submitted yet
+    # (if any) — that is what makes `_stage_open` (app/api/applications.py) true for it,
+    # so the applicant can PATCH/submit it. Idempotent: once `checkpoint` already sits on
+    # that next stage, `next_stage.key == current_stage_key` and this is a no-op, so a
+    # multi-call admin walk (submitted -> in_review_bpm -> indicative_approved) only
+    # opens the stage once. A single-stage service always has `next_stage is None` here
+    # (its only stage is already in `completed_stages` from the applicant's submit), so
+    # this is a no-op for it — no behavior change from before this feature.
+    completed_stages = application.completed_stages or []
+    next_stage = next((s for s in definition.stages if s.key not in completed_stages), None)
+    current_stage_key = application.checkpoint.get("stage_key")
+    has_outgoing_transition = any(t.source == result.status for t in definition.transitions)
+    if next_stage is not None and next_stage.key != current_stage_key and has_outgoing_transition:
+        first_step = next_stage.steps[0] if next_stage.steps else None
+        first_field = first_step.fields[0] if first_step and first_step.fields else None
+        application.checkpoint = {
+            "stage_key": next_stage.key,
+            "step_key": first_step.key if first_step else None,
+            "screen_key": first_field.key if first_field else None,
+        }
+        application.timeline = [
+            *application.timeline,
+            {
+                "status": result.status,
+                "at": datetime.now(timezone.utc).isoformat(),
+                "event": "stage_opened",
+                "stage": next_stage.key,
+            },
+        ]
+
     session.add(
         AuditLog(
             user_id=admin_user_id,

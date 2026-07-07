@@ -21,6 +21,12 @@ class Application(UUIDPkMixin, TimestampMixin, Base):
     `checkpoint` = {"stage_key": ..., "step_key": ..., "screen_key": ...} — адресует экран
     по ключу первого поля, а не по индексу (динамическое дробление 3–6 и правила видимости
     не должны "уносить" сохранённую позицию).
+
+    `completed_stages` — список ключей stage'ей (SPEC §4.3 "Многоэтапность"), уже
+    отправленных через POST .../submit. Инвариант "этап открыт для правки":
+    `checkpoint.stage_key not in completed_stages` (см. `app/api/applications._stage_open`).
+    Для одноэтапных услуг это ровно один ключ после единственного submit — как и было
+    раньше, просто теперь явно записано.
     """
     __tablename__ = "applications"
 
@@ -33,6 +39,7 @@ class Application(UUIDPkMixin, TimestampMixin, Base):
     checkpoint: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default=text("'{}'::jsonb"))
     data: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default=text("'{}'::jsonb"))
     timeline: Mapped[list] = mapped_column(JSONB, nullable=False, server_default=text("'[]'::jsonb"))
+    completed_stages: Mapped[list] = mapped_column(JSONB, nullable=False, server_default=text("'[]'::jsonb"))
 
     __table_args__ = (
         ForeignKeyConstraint(

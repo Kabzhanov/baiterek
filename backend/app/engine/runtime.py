@@ -2,22 +2,36 @@ from decimal import Decimal
 from app.engine.formulas import dependencies, evaluate_formula, topological_order
 from app.engine.rules import effects, evaluate_condition
 
-def compute(definition, data):
+def compute(definition, data, partial=False):
+    """`partial=True` (SPEC.md §4.3 "Многоэтапность") tolerates a computed formula whose
+    dependency is a field from a stage that is not open/filled yet — e.g. submitting
+    stage I of a multi-stage service must not blow up on a formula that only becomes
+    resolvable once stage II is filled in. Only a *missing* dependency
+    (`evaluate_formula`'s "unknown value: ..." ValueError) is swallowed; a real
+    computation error (division by zero, unknown operation) still raises, same as
+    before — that is a genuine Definition/data bug, not "not filled in yet"."""
     values, explanations = dict(data), {}
     formulas = {c.key:c for c in definition.computed}
     graph = {key:dependencies(item.expression)&set(formulas) for key,item in formulas.items()}
     for key in topological_order(graph):
-        values[key], explanations[key] = evaluate_formula(formulas[key].expression, values)
+        try:
+            values[key], explanations[key] = evaluate_formula(formulas[key].expression, values)
+        except ValueError as exc:
+            if not partial or not str(exc).startswith("unknown value:"):
+                raise
     return values, explanations
 
-def validate(definition, data, full=True, delta_keys=None):
+def validate(definition, data, full=True, stage_key=None):
+    """`stage_key` (SPEC.md §4.3 "Многоэтапность") restricts required/min/max checks to
+    one stage's fields — e.g. submitting stage I of a multi-stage service must not fail
+    on stage II's required fields, which are not open for editing yet."""
     applied, _ = effects(definition.rules, data)
     errors = []
     for stage in definition.stages:
+        if stage_key is not None and stage.key != stage_key:
+            continue
         for step in stage.steps:
             for field in step.fields:
-                if delta_keys is not None and field.key not in delta_keys:
-                    continue
                 visible = applied.get(field.key) != "hide"
                 required = (field.required or applied.get(field.key) == "require") and applied.get(field.key) != "optional"
                 value = data.get(field.key)
