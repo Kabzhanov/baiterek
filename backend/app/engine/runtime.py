@@ -50,7 +50,7 @@ def render(definition, data, checkpoint=None, user_context=None):
     applied, trace = effects(definition.rules, values)
     stage_index, step_index = checkpoint.get("stage",0), checkpoint.get("step",0)
     step = definition.stages[stage_index].steps[step_index]
-    fields = [{"key":f.key,"type":f.type,"label":f.label,"visible":applied.get(f.key)!="hide","required":(f.required or applied.get(f.key)=="require") and applied.get(f.key)!="hide","enabled":applied.get(f.key)!="disable"} for f in step.fields]
+    fields = [{"key":f.key,"type":f.type,"label":f.label,"visible":applied.get(f.key)!="hide","required":(f.required or applied.get(f.key)=="require") and applied.get(f.key)!="hide","enabled":applied.get(f.key)!="disable","prefill":f.prefill,"hint":f.hint} for f in step.fields]
     chunks = [fields[i:i+6] for i in range(0,len(fields),6)] or [[]]
     screen = min(checkpoint.get("screen",0),len(chunks)-1)
     return {"stage":definition.stages[stage_index].key,"step":step.key,"screen":screen,"fields":chunks[screen],"computed":{k:str(v) if isinstance(v,Decimal) else v for k,v in values.items() if k not in data},"validation":validate(definition,values),"progress":{"current":step_index+1,"total":sum(len(s.steps) for s in definition.stages)},"explanations":{"rules":trace,"computed":explanations}}

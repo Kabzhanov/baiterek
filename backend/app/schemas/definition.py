@@ -8,6 +8,28 @@ class FieldBase(BaseModel):
     label: str
     topic: str = "main"
     required: bool = False
+    # SPEC.md §4.3 "Предзаполнение из mock-ГБД ЮЛ по БИН" / "Обязательное расширение" §1
+    # "Ничего не спрашиваем, если можем узнать сами". Purely declarative — the engine
+    # never reads `prefill`/`hint` (same "engine is dumb, Definition carries the
+    # meaning" pattern as `rules`/`computed`); `engine.runtime.render()` only ferries
+    # them through to the screen contract so the frontend knows what to do.
+    #
+    # `prefill` convention (documented here + docs/service-definition.md):
+    #   - Trigger field (the BIN input the user actually types):
+    #       "prefill": "gbd_ul.lookup"
+    #     On input/blur the frontend calls `GET /integrations/gbd-ul/{value}` and
+    #     distributes the response over the target fields below.
+    #   - Target fields (auto-filled from the lookup response, shown collapsed as a
+    #     summary per "Обязательное расширение" §1, editable if the user disagrees):
+    #       "prefill": "gbd_ul.name"        <- GbdUlOut.name
+    #       "prefill": "gbd_ul.address"     <- GbdUlOut.address
+    #       "prefill": "gbd_ul.oked"        <- GbdUlOut.oked
+    #       "prefill": "gbd_ul.oked_name"   <- GbdUlOut.oked_name
+    #       "prefill": "gbd_ul.director"    <- GbdUlOut.director
+    # `hint` is a free-text plain-language tip shown next to the field (SPEC.md §5.2
+    # "Редактор поля: тип, label, hint, ..."), independent of whether `prefill` is set.
+    prefill: str | None = None
+    hint: str | None = None
 
 class TextField(FieldBase):
     type: Literal["text"]

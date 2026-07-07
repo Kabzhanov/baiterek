@@ -113,14 +113,18 @@
               "label": "Наименование/ФИО заявителя",
               "type": "text",
               "required": true,
-              "topic": "applicant"
+              "topic": "applicant",
+              "prefill": "gbd_ul.name",
+              "hint": "Подтянем автоматически по БИН из ГБД ЮЛ"
             },
             {
               "key": "bin_iin",
               "label": "БИН/ИИН",
               "type": "text",
               "required": true,
-              "topic": "applicant"
+              "topic": "applicant",
+              "prefill": "gbd_ul.lookup",
+              "hint": "Введите БИН — остальные поля заявителя заполнятся сами"
             },
             {
               "key": "contact_phone",

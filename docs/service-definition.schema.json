@@ -20,6 +20,30 @@
           "title": "Required",
           "type": "boolean"
         },
+        "prefill": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Prefill"
+        },
+        "hint": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Hint"
+        },
         "type": {
           "const": "boolean",
           "title": "Type",
@@ -63,6 +87,13 @@
           "default": "",
           "title": "Description",
           "type": "string"
+        },
+        "labels_plain": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Labels Plain",
+          "type": "object"
         }
       },
       "required": [
@@ -90,6 +121,30 @@
           "default": false,
           "title": "Required",
           "type": "boolean"
+        },
+        "prefill": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Prefill"
+        },
+        "hint": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Hint"
         },
         "type": {
           "const": "number",
@@ -148,6 +203,30 @@
           "default": false,
           "title": "Required",
           "type": "boolean"
+        },
+        "prefill": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Prefill"
+        },
+        "hint": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Hint"
         },
         "type": {
           "const": "repeater",
@@ -214,6 +293,30 @@
           "default": false,
           "title": "Required",
           "type": "boolean"
+        },
+        "prefill": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Prefill"
+        },
+        "hint": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Hint"
         },
         "type": {
           "const": "select",
@@ -334,6 +437,30 @@
           "default": false,
           "title": "Required",
           "type": "boolean"
+        },
+        "prefill": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Prefill"
+        },
+        "hint": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Hint"
         },
         "type": {
           "const": "text",

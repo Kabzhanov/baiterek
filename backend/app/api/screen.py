@@ -59,6 +59,8 @@ def _render_without_computed(definition, data: dict, stage_index: int, step_inde
             "visible": applied.get(f.key) != "hide",
             "required": (f.required or applied.get(f.key) == "require") and applied.get(f.key) != "hide",
             "enabled": applied.get(f.key) != "disable",
+            "prefill": f.prefill,
+            "hint": f.hint,
         }
         for f in step.fields
     ]
