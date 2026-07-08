@@ -25,6 +25,20 @@ function formatDate(value: string): string {
 
 type Phase = "loading" | "unavailable" | "ready";
 
+/** Группирует строки реестра по service_id и оставляет в каждой группе только
+ * запись с максимальным version (задача: по умолчанию не дублировать v1+v2
+ * published одной и той же услуги — визуальный шум в таблице). */
+function latestPerService(items: DefinitionListItem[]): DefinitionListItem[] {
+  const latest = new Map<string, DefinitionListItem>();
+  for (const item of items) {
+    const current = latest.get(item.service_id);
+    if (!current || item.version > current.version) {
+      latest.set(item.service_id, item);
+    }
+  }
+  return Array.from(latest.values());
+}
+
 export function DefinitionsRegistry() {
   const router = useRouter();
   const [phase, setPhase] = useState<Phase>("loading");
@@ -35,6 +49,7 @@ export function DefinitionsRegistry() {
   const [newSlug, setNewSlug] = useState("");
   const [createError, setCreateError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [showAllVersions, setShowAllVersions] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -129,6 +144,9 @@ export function DefinitionsRegistry() {
     );
   }
 
+  const visibleItems = showAllVersions ? items : latestPerService(items);
+  const hiddenCount = items.length - visibleItems.length;
+
   return (
     <div>
       <div className="actions" style={{ marginBottom: 16 }}>
@@ -139,6 +157,34 @@ export function DefinitionsRegistry() {
           Создать из документа (AI)
         </Link>
       </div>
+
+      {hiddenCount > 0 && (
+        <p className="muted" style={{ marginBottom: 16 }}>
+          Показана последняя версия каждой услуги ({hiddenCount}{" "}
+          {hiddenCount === 1 ? "старая версия скрыта" : "старых версий скрыто"}).{" "}
+          <button
+            type="button"
+            className="button secondary"
+            style={{ marginLeft: 8 }}
+            onClick={() => setShowAllVersions(true)}
+          >
+            Показать все версии
+          </button>
+        </p>
+      )}
+      {showAllVersions && (
+        <p className="muted" style={{ marginBottom: 16 }}>
+          Показаны все версии.{" "}
+          <button
+            type="button"
+            className="button secondary"
+            style={{ marginLeft: 8 }}
+            onClick={() => setShowAllVersions(false)}
+          >
+            Только последние версии
+          </button>
+        </p>
+      )}
 
       {creating && (
         <form className="form-card" onSubmit={handleCreate} noValidate style={{ marginBottom: 16 }}>
@@ -183,7 +229,7 @@ export function DefinitionsRegistry() {
             </tr>
           </thead>
           <tbody>
-            {items.map((item) => (
+            {visibleItems.map((item) => (
               <tr key={item.id}>
                 <td>{item.title}</td>
                 <td>{item.slug}</td>
