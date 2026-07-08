@@ -9,7 +9,7 @@ import Link from "next/link";
 import { ApplicationApiError, applicationApi } from "@/lib/application-api";
 import { completenessEmptyMessage, degradedNote, formatSuggestionCount } from "@/lib/copilot";
 import { createDebouncedSaver, mergeAfterConflict, type FieldDelta } from "@/lib/draft-autosave";
-import { buildDemoFillDelta } from "@/lib/demo-fill";
+import { buildStageDemoFillDelta } from "@/lib/demo-fill";
 import { distributeGbdUlResponse, isGbdLookupTrigger, isGbdPrefillTarget, looksLikeBin } from "@/lib/gbd-ul-prefill";
 import { buildScreenPlan, fieldIndex, findPlanIndexByScreenKey, type PlanScreen } from "@/lib/screen-plan";
 import { buildStageProgress, classifyDraftError, isUnderReview } from "@/lib/stage-progress";
@@ -274,12 +274,15 @@ export function ApplicationWizard({ slug, applicationId }: { slug: string; appli
   }
 
   // Демо-заполнение («Далее-Далее» для питча — не часть SPEC.md): проставляет валидные
-  // значения во все поля ТЕКУЩЕГО экрана через тот же updateField()/autosave, что и ручной
-  // ввод — ничего не идёт в обход PATCH-контракта, поэтому prefill/валидация/многоэтапность
-  // продолжают работать как обычно (см. lib/demo-fill.ts для чистой логики генерации значений).
+  // значения во ВСЕ поля ТЕКУЩЕГО ЭТАПА (все шаги/экраны этапа, не только текущий видимый
+  // экран, и независимо от текущей видимости — см. buildStageDemoFillDelta docstring) через
+  // тот же updateField()/autosave, что и ручной ввод — ничего не идёт в обход PATCH-контракта,
+  // поэтому prefill/валидация/многоэтапность продолжают работать как обычно (см.
+  // lib/demo-fill.ts для чистой логики генерации значений). После клика жюри достаточно
+  // жать «Далее» до конца этапа — каждый экран, включая любую ветку, уже заполнен.
   function handleDemoFill() {
-    if (!screen) return;
-    const delta = buildDemoFillDelta(screen, fieldIndexMap);
+    if (!screen || !definition) return;
+    const delta = buildStageDemoFillDelta(definition, screen.stage, data);
     for (const [key, value] of Object.entries(delta)) updateField(key, value);
   }
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { DefinitionField, ScreenContract } from "./application-types";
-import { DEMO_BIN, buildDemoFillDelta, demoValueForField } from "./demo-fill";
+import type { DefinitionField, ServiceDefinitionDoc } from "./application-types";
+import { DEMO_BIN, buildStageDemoFillDelta, demoValueForField } from "./demo-fill";
 
 function field(overrides: Partial<DefinitionField> & { key: string; type: string }): DefinitionField {
   return { label: overrides.key, ...overrides } as DefinitionField;
@@ -70,55 +70,93 @@ describe("demoValueForField", () => {
   });
 });
 
-describe("buildDemoFillDelta", () => {
-  const fieldIndexMap = new Map<string, DefinitionField>([
-    ["applicant_bin", field({ key: "applicant_bin", label: "БИН", type: "text", prefill: "gbd_ul.lookup" })],
-    ["amount", field({ key: "amount", label: "Сумма", type: "number" })],
-    ["agree", field({ key: "agree", label: "Согласие", type: "boolean" })],
-  ]);
-
-  function screenWith(fields: ScreenContract["fields"], computed: Record<string, unknown> = {}): ScreenContract {
+describe("buildStageDemoFillDelta", () => {
+  function definitionWith(overrides: Partial<ServiceDefinitionDoc>): ServiceDefinitionDoc {
     return {
-      stage: "s",
-      step: "st",
-      screen: 0,
-      fields,
-      computed,
-      validation: [],
-      progress: { current: 1, total: 1 },
-      explanations: { rules: [], computed: {} },
+      schema_version: "1.0",
+      service_id: "svc-1",
+      version: 1,
+      meta: { title: "Тест", description: "" },
+      stages: [],
+      rules: [],
+      computed: [],
+      statuses: [],
+      transitions: [],
+      integrations: [],
+      ...overrides,
     };
   }
 
-  it("fills every visible, enabled, non-computed field on the current screen", () => {
-    const screen = screenWith([
-      { key: "applicant_bin", type: "text", label: "БИН", visible: true, required: true, enabled: true, prefill: "gbd_ul.lookup", hint: null },
-      { key: "amount", type: "number", label: "Сумма", visible: true, required: true, enabled: true, prefill: null, hint: null },
-      { key: "agree", type: "boolean", label: "Согласие", visible: true, required: false, enabled: true, prefill: null, hint: null },
-    ]);
-    const delta = buildDemoFillDelta(screen, fieldIndexMap);
-    expect(delta).toEqual({ applicant_bin: DEMO_BIN, amount: 1_000_000, agree: true });
+  // Two steps in the same stage, plus a branch-select field whose two possible targets
+  // (`branch_a_only`/`branch_b_only`) live on a *later* screen and would normally only be
+  // visible after the applicant picks a branch — the whole point of this function is to
+  // fill both regardless, so the applicant never hits an unfilled required field mid-branch.
+  const definition = definitionWith({
+    stages: [
+      {
+        key: "stage1",
+        title: "Этап I",
+        steps: [
+          {
+            key: "step1",
+            title: "Шаг 1",
+            fields: [
+              field({ key: "applicant_bin", label: "БИН", type: "text", prefill: "gbd_ul.lookup" }),
+              field({ key: "branch", label: "Форма организации", type: "select", options: ["ИП", "ТОО"] }),
+            ],
+          },
+          {
+            key: "step2",
+            title: "Шаг 2",
+            fields: [
+              field({ key: "branch_a_only", label: "Поле для ИП", type: "text" }),
+              field({ key: "branch_b_only", label: "Поле для ТОО", type: "text" }),
+              field({ key: "amount", label: "Сумма", type: "number" }),
+              field({ key: "total", label: "Итого", type: "number" }),
+            ],
+          },
+        ],
+      },
+      {
+        key: "stage2",
+        title: "Этап II",
+        steps: [{ key: "step3", title: "Шаг 3", fields: [field({ key: "stage2_field", label: "Поле этапа II", type: "text" })] }],
+      },
+    ],
+    computed: [{ key: "total", expression: {} }],
   });
 
-  it("skips fields that are not visible", () => {
-    const screen = screenWith([
-      { key: "amount", type: "number", label: "Сумма", visible: false, required: true, enabled: true, prefill: null, hint: null },
-    ]);
-    expect(buildDemoFillDelta(screen, fieldIndexMap)).toEqual({});
+  it("fills every fillable, non-computed field across every step of the stage, regardless of branch visibility", () => {
+    const delta = buildStageDemoFillDelta(definition, "stage1", {});
+    expect(delta).toEqual({
+      applicant_bin: DEMO_BIN,
+      branch: "ИП",
+      branch_a_only: "Демо-значение: Поле для ИП",
+      branch_b_only: "Демо-значение: Поле для ТОО",
+      amount: 1_000_000,
+    });
   });
 
-  it("skips fields that are disabled", () => {
-    const screen = screenWith([
-      { key: "amount", type: "number", label: "Сумма", visible: true, required: true, enabled: false, prefill: null, hint: null },
-    ]);
-    expect(buildDemoFillDelta(screen, fieldIndexMap)).toEqual({});
+  it("does not touch fields belonging to a different stage", () => {
+    const delta = buildStageDemoFillDelta(definition, "stage1", {});
+    expect(delta).not.toHaveProperty("stage2_field");
   });
 
   it("skips computed fields — they cannot be set manually", () => {
-    const screen = screenWith(
-      [{ key: "amount", type: "number", label: "Сумма", visible: true, required: true, enabled: true, prefill: null, hint: null }],
-      { amount: 42 },
-    );
-    expect(buildDemoFillDelta(screen, fieldIndexMap)).toEqual({});
+    const delta = buildStageDemoFillDelta(definition, "stage1", {});
+    expect(delta).not.toHaveProperty("total");
+  });
+
+  it("does not overwrite fields that already have a value (manual input or GBD prefill)", () => {
+    const delta = buildStageDemoFillDelta(definition, "stage1", { applicant_bin: "111111111111", amount: 250 });
+    expect(delta).toEqual({
+      branch: "ИП",
+      branch_a_only: "Демо-значение: Поле для ИП",
+      branch_b_only: "Демо-значение: Поле для ТОО",
+    });
+  });
+
+  it("returns an empty delta for an unknown stage key", () => {
+    expect(buildStageDemoFillDelta(definition, "no-such-stage", {})).toEqual({});
   });
 });
