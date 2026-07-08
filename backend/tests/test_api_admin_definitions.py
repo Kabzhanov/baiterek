@@ -50,6 +50,22 @@ async def test_create_definition_happy_path(client, db_session):
     assert body["definition"]["meta"]["title"] == "Демонстрационная услуга"
 
 
+async def test_create_definition_without_org_id_uses_default_org(client, db_session):
+    # Конструктор в UI не заставляет выбирать организацию: {slug, definition} без org_id
+    # должен создавать draft, привязанный к организации по умолчанию (первой).
+    org = await seed_organization(db_session)
+    admin = await seed_user(db_session, role=UserRole.ADMIN)
+
+    response = await client.post(
+        "/api/v1/admin/definitions",
+        json={"slug": "no-org-draft", "definition": build_definition_json()},
+        headers=_headers(admin),
+    )
+
+    assert response.status_code == 201, response.text
+    assert response.json()["org_id"] == str(org.id)
+
+
 async def test_create_definition_invalid_schema_returns_422(client, db_session):
     org = await seed_organization(db_session)
     admin = await seed_user(db_session, role=UserRole.ADMIN)

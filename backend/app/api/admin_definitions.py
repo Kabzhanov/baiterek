@@ -77,7 +77,7 @@ from app.api.contracts import (
 from app.api.deps import require_role
 from app.api.errors import ApiError
 from app.db import get_session
-from app.models import AuditLog, ServiceDefinition, ServiceStatus, UserRole
+from app.models import AuditLog, Organization, ServiceDefinition, ServiceStatus, UserRole
 from app.schemas.definition import ServiceDefinition as ServiceDefinitionSchema
 
 router = APIRouter(tags=["admin-definitions"])
@@ -109,6 +109,17 @@ async def _unique_slug(session: AsyncSession, base: str) -> str:
         candidate = f"{base}-{suffix}"
         suffix += 1
     return candidate
+
+
+async def _resolve_org_id(session: AsyncSession, org_id: uuid.UUID | None) -> uuid.UUID:
+    """Организация услуги: явная из запроса или первая по умолчанию — конструктор в UI
+    не заставляет выбирать организацию (SPEC §5.2), а колонка org_id NOT NULL."""
+    if org_id is not None:
+        return org_id
+    default_org = await session.scalar(select(Organization.id).order_by(Organization.created_at).limit(1))
+    if default_org is None:
+        raise ApiError(422, "no_organization", "Нет ни одной организации для привязки услуги", {})
+    return default_org
 
 
 def _to_detail(row: ServiceDefinition) -> DefinitionDetailOut:
@@ -200,7 +211,7 @@ async def create_definition(
 ) -> DefinitionDetailOut:
     _validate_definition(payload.definition)
     row = ServiceDefinition(
-        org_id=payload.org_id,
+        org_id=await _resolve_org_id(session, payload.org_id),
         slug=payload.slug,
         status=ServiceStatus.DRAFT,
         version=1,
@@ -426,7 +437,7 @@ async def generate_definition(
 
     slug = payload.slug or await _unique_slug(session, _slugify(_title(outcome.definition), "ai-service"))
     row = ServiceDefinition(
-        org_id=payload.org_id,
+        org_id=await _resolve_org_id(session, payload.org_id),
         slug=slug,
         status=ServiceStatus.DRAFT,
         version=1,

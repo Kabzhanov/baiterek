@@ -146,12 +146,10 @@ class DefinitionDetailOut(BaseModel):
 
 class CreateDefinitionRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    # `org_id` is required even though SPEC.md's endpoint sketch only lists
-    # `{slug, definition}`: `service_definitions.org_id` is a NOT NULL FK
-    # (`app/models/service_definition.py`) with no default, so the caller must supply
-    # it — same requirement the existing `/admin/definitions/import` endpoint already
-    # has (`app/api/definitions.py`).
-    org_id: uuid.UUID
+    # `org_id` опционален: `service_definitions.org_id` — NOT NULL FK, но конструктор в
+    # UI не заставляет выбирать организацию, поэтому при отсутствии сервер подставляет
+    # организацию по умолчанию (первую, см. `_resolve_org_id` в admin_definitions.py).
+    org_id: uuid.UUID | None = None
     slug: str
     definition: dict
 
@@ -190,10 +188,10 @@ class DuplicateDefinitionOut(BaseModel):
 class GenerateDefinitionRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     text: str
-    # See `CreateDefinitionRequest.org_id` docstring — same NOT NULL FK constraint.
-    org_id: uuid.UUID
+    # Опционален — при отсутствии берётся организация по умолчанию (см. CreateDefinitionRequest).
+    org_id: uuid.UUID | None = None
     # Optional: derived from the generated `meta.title` (transliterated, deduplicated)
-    # when omitted, so a plain `{text, org_id}` request still works end to end.
+    # when omitted, so a plain `{text}` request still works end to end.
     slug: str | None = None
 
 
