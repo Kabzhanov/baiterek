@@ -13,11 +13,13 @@
 import { getMockUserId } from "./mock-user";
 import type {
   ApiErrorBody,
+  ApplicationCompletenessOut,
   ApplicationOut,
   CabinetApplicationDetail,
   CabinetListOut,
   Checkpoint,
   DraftPatchOut,
+  ExplainServiceOut,
   GbdUlOut,
   ResumeOut,
   ServiceSummaryOut,
@@ -107,4 +109,12 @@ export const applicationApi = {
   // Предзаполнение по БИН (SPEC.md §8/§3.2, "Обязательное расширение" §1). No auth needed
   // server-side (mock directory lookup), but `call()` always sends X-User-Id anyway — harmless.
   lookupGbdUl: (bin: string) => call<GbdUlOut>(`/v1/integrations/gbd-ul/${encodeURIComponent(bin)}`),
+  // AI-копайлоты (SPEC.md §7.1, AI-критерий 9.4): «Объяснить простыми словами» на карточке
+  // услуги и «Проверить полноту (AI)» на review-экране мастера. См.
+  // backend/app/api/copilot.py — оба открыты любому аутентифицированному пользователю,
+  // completeness — только владельцу заявки (404 при чужом id, как и остальные /applications).
+  explainService: (slug: string) =>
+    call<ExplainServiceOut>(`/v1/services/${encodeURIComponent(slug)}/explain`, { method: "POST" }),
+  checkCompleteness: (applicationId: string) =>
+    call<ApplicationCompletenessOut>(`/v1/applications/${applicationId}/completeness`, { method: "POST" }),
 };

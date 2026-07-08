@@ -218,6 +218,22 @@ class IntakeMatchOut(BaseModel):
     degraded: bool
 
 
+class ExplainServiceOut(BaseModel):
+    """`POST /api/v1/services/{slug}/explain` (SPEC.md §7.1 "Объяснить простыми
+    словами"). Served by `app/api/copilot.py`."""
+
+    text: str
+    degraded: bool
+
+
+class ApplicationCompletenessOut(BaseModel):
+    """`POST /api/v1/applications/{id}/completeness` (SPEC.md §7.1 "Проверка полноты
+    заявки" — advisory only, never blocks `/submit`). Served by `app/api/copilot.py`."""
+
+    suggestions: list[str]
+    degraded: bool
+
+
 # ---------------------------------------------------------------------------
 # Content: карта проектов / аналитика / инструменты и материалы (SPEC.md §4.5-4.7).
 # Served by `app/api/content.py`. Public read-only — no auth.

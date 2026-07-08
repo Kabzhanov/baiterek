@@ -7,6 +7,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { ApplicationApiError, applicationApi } from "@/lib/application-api";
+import { completenessEmptyMessage, degradedNote, formatSuggestionCount } from "@/lib/copilot";
 import { createDebouncedSaver, mergeAfterConflict, type FieldDelta } from "@/lib/draft-autosave";
 import { distributeGbdUlResponse, isGbdLookupTrigger, isGbdPrefillTarget, looksLikeBin } from "@/lib/gbd-ul-prefill";
 import { buildScreenPlan, fieldIndex, findPlanIndexByScreenKey, type PlanScreen } from "@/lib/screen-plan";
@@ -37,6 +38,13 @@ type Phase =
   | "under_review";
 type SaveStatus = "idle" | "saving" | "saved" | "error";
 type GbdLookupState = { status: "idle" | "loading" | "success" | "error"; result: GbdUlOut | null; triggerKey: string | null };
+// «Проверить полноту (AI)» на review-экране (SPEC.md §7.1, AI-критерий 9.4) — советует,
+// НЕ блокирует «Отправить заявку».
+type CompletenessState =
+  | { status: "idle" }
+  | { status: "loading" }
+  | { status: "success"; suggestions: string[]; degraded: boolean }
+  | { status: "error" };
 
 function formatReviewMoment(iso: string): string {
   const date = new Date(iso);
@@ -61,6 +69,7 @@ export function ApplicationWizard({ slug, applicationId }: { slug: string; appli
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [submitErrors, setSubmitErrors] = useState<ScreenValidationItem[] | null>(null);
   const [submitResult, setSubmitResult] = useState<SubmitOut | null>(null);
+  const [completeness, setCompleteness] = useState<CompletenessState>({ status: "idle" });
 
   // Многоэтапность (см. `Phase` docstring выше).
   const [status, setStatus] = useState<string>("draft");
@@ -395,7 +404,22 @@ export function ApplicationWizard({ slug, applicationId }: { slug: string; appli
         await recoverFromSaveError(err, delta, null);
       }
     }
+    setCompleteness({ status: "idle" });
     setPhase("review");
+  }
+
+  // «Проверить полноту (AI)» (SPEC.md §7.1): советует, не блокирует — ошибка здесь
+  // просто оставляет кнопку доступной для повтора, «Отправить заявку» работает как раньше.
+  async function handleCheckCompleteness() {
+    const id = applicationIdRef.current;
+    if (!id) return;
+    setCompleteness({ status: "loading" });
+    try {
+      const result = await applicationApi.checkCompleteness(id);
+      setCompleteness({ status: "success", suggestions: result.suggestions, degraded: result.degraded });
+    } catch {
+      setCompleteness({ status: "error" });
+    }
   }
 
   async function jumpToField(key: string | null | undefined) {
@@ -892,6 +916,48 @@ export function ApplicationWizard({ slug, applicationId }: { slug: string; appli
                 </table>
               </div>
             ))}
+            <div className="form-card">
+              <span className="pill">AI</span>
+              <h3>Проверка полноты заявки</h3>
+              <p className="muted">Необязательная подсказка перед отправкой — ничего не блокирует.</p>
+              {completeness.status !== "success" && (
+                <button
+                  type="button"
+                  className="button secondary"
+                  onClick={handleCheckCompleteness}
+                  disabled={completeness.status === "loading"}
+                >
+                  {completeness.status === "loading" ? "Проверяем…" : "Проверить полноту (AI)"}
+                </button>
+              )}
+              {completeness.status === "error" && (
+                <p className="muted">Не удалось проверить полноту — попробуйте ещё раз позже.</p>
+              )}
+              {completeness.status === "success" && (
+                <>
+                  {completeness.suggestions.length > 0 ? (
+                    <>
+                      <p className="muted">{formatSuggestionCount(completeness.suggestions.length)}:</p>
+                      <ul className="steps">
+                        {completeness.suggestions.map((s, i) => (
+                          <li key={i}>{s}</li>
+                        ))}
+                      </ul>
+                    </>
+                  ) : (
+                    <p className="muted">{completenessEmptyMessage()}</p>
+                  )}
+                  {completeness.degraded && (
+                    <p className="muted">
+                      <small>{degradedNote("completeness")}</small>
+                    </p>
+                  )}
+                  <button type="button" className="button secondary" onClick={handleCheckCompleteness}>
+                    Проверить ещё раз
+                  </button>
+                </>
+              )}
+            </div>
             <div className="actions">
               <button type="button" className="button secondary" onClick={() => goToScreen(plan.length - 1)}>
                 Назад к заполнению

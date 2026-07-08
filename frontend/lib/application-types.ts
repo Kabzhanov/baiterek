@@ -165,6 +165,12 @@ export type GbdUlOut = {
   disclaimer: string;
 };
 
+// AI-копайлоты (SPEC.md §7.1, AI-критерий 9.4) — зеркала `ExplainServiceOut`/
+// `ApplicationCompletenessOut` из backend/app/api/contracts.py.
+export type ExplainServiceOut = { text: string; degraded: boolean };
+
+export type ApplicationCompletenessOut = { suggestions: string[]; degraded: boolean };
+
 export type ServiceSummaryOut = {
   id: string;
   slug: string;

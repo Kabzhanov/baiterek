@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { ServiceExplainCard } from "@/components/form-engine/service-explain-card";
 import { SiteHeader } from "@/components/site-header";
 import { portalApi } from "@/lib/api";
 
@@ -53,14 +54,7 @@ export default async function ServiceDetailPage({ params }: { params: Promise<{ 
               </div>
             </div>
 
-            <aside className="card">
-              <span className="pill">AI</span>
-              <h2>Объяснить простыми словами</h2>
-              <p className="muted">Пересказ условий без канцелярита и подсказка, что понадобится для заявки. Скоро.</p>
-              <button className="button secondary" type="button" disabled>
-                Объяснить простыми словами
-              </button>
-            </aside>
+            <ServiceExplainCard slug={slug} />
           </div>
         </section>
       </main>

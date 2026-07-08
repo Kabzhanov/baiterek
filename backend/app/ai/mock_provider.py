@@ -17,11 +17,19 @@ in the spirit of SPEC.md's №230-VIII explainability requirement):
 - `AI_TEST_INVALID_ALWAYS` — return invalid JSON on every attempt, so the retry budget
   is exhausted and the caller has to answer an honest 422.
 
-`/intake/match` does not go through this provider's text-in/text-out protocol at all
-when `provider.name == "mock"` — `app.ai.intake.match_services` calls
-`app.ai.intake.keyword_match` directly. That keeps the "keyword-fallback без LLM" path
-(SPEC.md §7.1) a genuinely separate, auditable algorithm rather than a JSON string this
-class would otherwise have to fake being an LLM to produce.
+`/intake/match` and `/applications/{id}/completeness` do NOT go through this provider's
+text-in/text-out protocol at all when `provider.name == "mock"` —
+`app.ai.intake.match_services` calls `app.ai.intake.keyword_match` directly, and
+`app.ai.completeness.completeness_suggestions` calls `rule_based_suggestions` directly.
+That keeps their "keyword/rule-fallback без LLM" paths (SPEC.md §7.1) genuinely
+separate, auditable algorithms rather than a JSON string this class would otherwise
+have to fake being an LLM to produce.
+
+`/services/{slug}/explain` is different: there is no separate rule-based "explain this
+service" algorithm, so this class DOES answer that prompt (`TASK: explain_service`,
+handled by `_explain_service` below) — a deterministic, template-based paraphrase of the
+service's `meta`, in the same spirit as `_generate_definition` fakes the JSON-generation
+protocol.
 """
 from __future__ import annotations
 
@@ -35,6 +43,7 @@ from app.ai.provider import LLMResult
 _INVALID_ONCE = "AI_TEST_INVALID_ONCE"
 _INVALID_ALWAYS = "AI_TEST_INVALID_ALWAYS"
 _SOURCE_MARKER = "SOURCE_TEXT:\n"
+_META_MARKER = "META:\n"
 
 
 def _slugify(text: str, fallback: str) -> str:
@@ -48,6 +57,20 @@ def _extract_source_text(prompt: str) -> str:
     return prompt[index + len(_SOURCE_MARKER) :].strip() if index != -1 else prompt.strip()
 
 
+def _extract_meta(prompt: str) -> dict:
+    index = prompt.find(_META_MARKER)
+    raw = prompt[index + len(_META_MARKER) :].strip() if index != -1 else "{}"
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError:
+        return {}
+    return parsed if isinstance(parsed, dict) else {}
+
+
+def _lowercase_first(text: str) -> str:
+    return f"{text[0].lower()}{text[1:]}" if text else text
+
+
 class MockLLMProvider:
     """Offline, deterministic `LLMProvider` — see module docstring."""
 
@@ -56,10 +79,49 @@ class MockLLMProvider:
     async def complete(self, *, system: str, prompt: str) -> LLMResult:
         if system.startswith("TASK: generate_service_definition"):
             return LLMResult(text=self._generate_definition(prompt), provider=self.name)
+        if system.startswith("TASK: explain_service"):
+            return LLMResult(text=self._explain_service(prompt), provider=self.name)
         # No other task currently routes through the mock's text protocol (see module
-        # docstring re: /intake/match), but returning valid empty JSON rather than
-        # raising keeps this provider a safe default for any future caller.
+        # docstring re: /intake/match and /completeness), but returning valid empty JSON
+        # rather than raising keeps this provider a safe default for any future caller.
         return LLMResult(text="{}", provider=self.name)
+
+    def _explain_service(self, prompt: str) -> str:
+        """Deterministic, template-based paraphrase of a service's `meta` (SPEC.md §7.1
+        "Объяснить простыми словами", §7.3 "MockLLMProvider детерминированные ответы").
+        Purely a function of `meta` — same input always yields the same sentences, no
+        randomness, nothing invented that isn't already in `meta`."""
+        meta = _extract_meta(prompt)
+        title = str(meta.get("title") or "").strip() or "Эта мера поддержки"
+        # `.rstrip(".")` avoids a doubled "нужного слов.." when the source text already
+        # ends in a period — this template always supplies its own final punctuation.
+        summary = str(meta.get("summary_plain") or "").strip().rstrip(".")
+        conditions = meta.get("conditions") or []
+        documents = meta.get("documents_checklist") or []
+        result = str(meta.get("result") or "").strip().rstrip(".")
+        sla_days = meta.get("sla_days")
+
+        sentences = [f"«{title}» — {_lowercase_first(summary)}." if summary else f"«{title}» — мера поддержки бизнеса от государства."]
+
+        condition_bits = [
+            f"{item.get('label')}: {item.get('value')}"
+            for item in conditions
+            if isinstance(item, dict) and item.get("label") and item.get("value")
+        ]
+        if condition_bits:
+            sentences.append("Основные условия: " + "; ".join(condition_bits) + ".")
+
+        document_bits = [str(item).strip() for item in documents if str(item).strip()]
+        if document_bits:
+            sentences.append("Для заявки понадобится: " + ", ".join(document_bits) + ".")
+
+        if result:
+            sentences.append(f"Итог обращения — {_lowercase_first(result)}.")
+
+        if isinstance(sla_days, (int, float)) and not isinstance(sla_days, bool):
+            sentences.append(f"Срок рассмотрения — примерно {int(sla_days)} дн.")
+
+        return " ".join(sentences)
 
     def _generate_definition(self, prompt: str) -> str:
         is_repair = prompt.startswith("REPAIR_ATTEMPT: true")
