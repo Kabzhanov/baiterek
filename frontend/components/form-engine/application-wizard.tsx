@@ -9,6 +9,7 @@ import Link from "next/link";
 import { ApplicationApiError, applicationApi } from "@/lib/application-api";
 import { completenessEmptyMessage, degradedNote, formatSuggestionCount } from "@/lib/copilot";
 import { createDebouncedSaver, mergeAfterConflict, type FieldDelta } from "@/lib/draft-autosave";
+import { buildDemoFillDelta } from "@/lib/demo-fill";
 import { distributeGbdUlResponse, isGbdLookupTrigger, isGbdPrefillTarget, looksLikeBin } from "@/lib/gbd-ul-prefill";
 import { buildScreenPlan, fieldIndex, findPlanIndexByScreenKey, type PlanScreen } from "@/lib/screen-plan";
 import { buildStageProgress, classifyDraftError, isUnderReview } from "@/lib/stage-progress";
@@ -270,6 +271,16 @@ export function ApplicationWizard({ slug, applicationId }: { slug: string; appli
     saverRef.current.schedule({ [key]: value });
     setSaveStatus("saving");
     maybeRunGbdLookup(key, value);
+  }
+
+  // Демо-заполнение («Далее-Далее» для питча — не часть SPEC.md): проставляет валидные
+  // значения во все поля ТЕКУЩЕГО экрана через тот же updateField()/autosave, что и ручной
+  // ввод — ничего не идёт в обход PATCH-контракта, поэтому prefill/валидация/многоэтапность
+  // продолжают работать как обычно (см. lib/demo-fill.ts для чистой логики генерации значений).
+  function handleDemoFill() {
+    if (!screen) return;
+    const delta = buildDemoFillDelta(screen, fieldIndexMap);
+    for (const [key, value] of Object.entries(delta)) updateField(key, value);
   }
 
   // Предзаполнение по БИН (SPEC.md §3.2/§8, требования 4/7): срабатывает только на поле-
@@ -813,7 +824,7 @@ export function ApplicationWizard({ slug, applicationId }: { slug: string; appli
             </Link>
           </div>
         </div>
-        {definition && definition.stages.length > 1 && <aside className="card">{renderStageProgress()}</aside>}
+        {definition && definition.stages.length > 1 && <aside className="card wizard-progress">{renderStageProgress()}</aside>}
       </div>
     );
   }
@@ -863,6 +874,11 @@ export function ApplicationWizard({ slug, applicationId }: { slug: string; appli
             <p className="muted">
               Шаг {currentPlan.stepIndex + 1} · этап «{currentPlan.stageTitle}»
             </p>
+            <div className="actions">
+              <button type="button" className="button secondary" onClick={handleDemoFill}>
+                <span className="pill" aria-hidden>Демо</span> Заполнить демо-данными
+              </button>
+            </div>
             {renderScreenFields(screen.fields)}
             <div className="actions">
               {currentPlanIndex > 0 && (
@@ -904,16 +920,18 @@ export function ApplicationWizard({ slug, applicationId }: { slug: string; appli
             {reviewGroups.map((group) => (
               <div className="review-block" key={group.key}>
                 <h3>{group.title}</h3>
-                <table className="table">
-                  <tbody>
-                    {group.fields.map((f) => (
-                      <tr key={f.key}>
-                        <th>{f.label}</th>
-                        <td>{formatValueForReview(f.key)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                <div className="table-scroll">
+                  <table className="table">
+                    <tbody>
+                      {group.fields.map((f) => (
+                        <tr key={f.key}>
+                          <th>{f.label}</th>
+                          <td>{formatValueForReview(f.key)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             ))}
             <div className="form-card">
@@ -969,7 +987,7 @@ export function ApplicationWizard({ slug, applicationId }: { slug: string; appli
           </div>
         )}
       </div>
-      <aside className="card">
+      <aside className="card wizard-progress">
         {renderStageProgress()}
         {renderLevels()}
       </aside>

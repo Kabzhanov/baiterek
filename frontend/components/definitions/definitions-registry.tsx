@@ -217,56 +217,99 @@ export function DefinitionsRegistry() {
           <p className="muted">В реестре пока нет услуг. Создайте первую — вручную или из документа через AI.</p>
         </div>
       ) : (
-        <table className="table">
-          <thead>
-            <tr>
-              <th>Название</th>
-              <th>Slug</th>
-              <th>Статус</th>
-              <th>Версия</th>
-              <th>Обновлена</th>
-              <th>Действия</th>
-            </tr>
-          </thead>
-          <tbody>
+        <>
+          {/* Desktop: таблица (как раньше). Мобиле (≤768px, см. globals.css): скрывается,
+              вместо неё показывается `.mobile-cards` ниже — те же данные и действия, но
+              карточками, а не строками узкой таблицы. */}
+          <div className="table-scroll desktop-table">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Название</th>
+                  <th>Slug</th>
+                  <th>Статус</th>
+                  <th>Версия</th>
+                  <th>Обновлена</th>
+                  <th>Действия</th>
+                </tr>
+              </thead>
+              <tbody>
+                {visibleItems.map((item) => (
+                  <tr key={item.id}>
+                    <td>{item.title}</td>
+                    <td>{item.slug}</td>
+                    <td>
+                      <span className="pill" data-status={item.status}>
+                        {STATUS_LABELS[item.status] ?? item.status}
+                      </span>
+                    </td>
+                    <td>v{item.version}</td>
+                    <td>{formatDate(item.updated_at)}</td>
+                    <td>
+                      <div className="actions">
+                        <Link className="button secondary" href={`/create/definitions/${item.id}`}>
+                          Редактировать
+                        </Link>
+                        <button
+                          type="button"
+                          className="button secondary"
+                          disabled={busyId === item.id}
+                          onClick={() => void handleDuplicate(item)}
+                        >
+                          Дублировать
+                        </button>
+                        <button
+                          type="button"
+                          className="button secondary"
+                          disabled={busyId === item.id}
+                          onClick={() => void handleExport(item)}
+                        >
+                          Экспорт JSON
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="mobile-cards">
             {visibleItems.map((item) => (
-              <tr key={item.id}>
-                <td>{item.title}</td>
-                <td>{item.slug}</td>
-                <td>
-                  <span className="pill" data-status={item.status}>
-                    {STATUS_LABELS[item.status] ?? item.status}
-                  </span>
-                </td>
-                <td>v{item.version}</td>
-                <td>{formatDate(item.updated_at)}</td>
-                <td>
-                  <div className="actions">
-                    <Link className="button secondary" href={`/create/definitions/${item.id}`}>
-                      Редактировать
-                    </Link>
-                    <button
-                      type="button"
-                      className="button secondary"
-                      disabled={busyId === item.id}
-                      onClick={() => void handleDuplicate(item)}
-                    >
-                      Дублировать
-                    </button>
-                    <button
-                      type="button"
-                      className="button secondary"
-                      disabled={busyId === item.id}
-                      onClick={() => void handleExport(item)}
-                    >
-                      Экспорт JSON
-                    </button>
-                  </div>
-                </td>
-              </tr>
+              <article className="card" key={item.id} style={{ marginBottom: 16 }}>
+                <span className="pill" data-status={item.status}>
+                  {STATUS_LABELS[item.status] ?? item.status}
+                </span>
+                <h3>{item.title}</h3>
+                <p className="muted">
+                  {item.slug} · v{item.version}
+                </p>
+                <p className="muted">Обновлена {formatDate(item.updated_at)}</p>
+                <div className="actions">
+                  <Link className="button secondary" href={`/create/definitions/${item.id}`}>
+                    Редактировать
+                  </Link>
+                  <button
+                    type="button"
+                    className="button secondary"
+                    disabled={busyId === item.id}
+                    onClick={() => void handleDuplicate(item)}
+                  >
+                    Дублировать
+                  </button>
+                  <button
+                    type="button"
+                    className="button secondary"
+                    disabled={busyId === item.id}
+                    onClick={() => void handleExport(item)}
+                  >
+                    Экспорт JSON
+                  </button>
+                </div>
+              </article>
             ))}
-          </tbody>
-        </table>
+          </div>
+        </>
       )}
     </div>
   );

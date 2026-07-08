@@ -25,16 +25,18 @@ export default async function ServiceDetailPage({ params }: { params: Promise<{ 
           <div className="form-shell">
             <div>
               <h2>Условия</h2>
-              <table className="table">
-                <tbody>
-                  {meta.conditions.map((c) => (
-                    <tr key={c.label}>
-                      <th>{c.label}</th>
-                      <td>{c.value}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <div className="table-scroll">
+                <table className="table">
+                  <tbody>
+                    {meta.conditions.map((c) => (
+                      <tr key={c.label}>
+                        <th>{c.label}</th>
+                        <td>{c.value}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
 
               <h2>Что понадобится</h2>
               <ul className="steps">

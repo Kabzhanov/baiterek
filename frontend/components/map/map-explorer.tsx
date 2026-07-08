@@ -78,34 +78,40 @@ export function MapExplorer() {
         Демонстрационные данные — синтетические проекты для стенда
       </span>
 
-      <div className="filters" role="group" aria-label="Организация">
-        {organizations.map((o) => (
-          <button key={o} type="button" aria-pressed={organization === o} onClick={() => setOrganization(o)}>
-            {o}
-          </button>
-        ))}
-      </div>
-      <div className="filters" role="group" aria-label="Регион">
-        {regions.map((r) => (
-          <button key={r} type="button" aria-pressed={region === r} onClick={() => setRegion(r)}>
-            {r}
-          </button>
-        ))}
-      </div>
-      <div className="filters" role="group" aria-label="Отрасль">
-        {industries.map((i) => (
-          <button key={i} type="button" aria-pressed={industry === i} onClick={() => setIndustry(i)}>
-            {i}
-          </button>
-        ))}
-      </div>
-      <div className="filters" role="group" aria-label="Статус">
-        {statuses.map((s) => (
-          <button key={s} type="button" aria-pressed={status === s} onClick={() => setStatus(s)}>
-            {s}
-          </button>
-        ))}
-      </div>
+      {/* `<details>` — сворачиваемый блок фильтров «из коробки» (открыт по умолчанию, чтобы
+          десктоп-вид не поменялся): на узком экране тап по summary сворачивает фильтры, и
+          карта освобождает место без ручного JS-состояния. */}
+      <details className="filters-toggle" open>
+        <summary>Фильтры</summary>
+        <div className="filters" role="group" aria-label="Организация">
+          {organizations.map((o) => (
+            <button key={o} type="button" aria-pressed={organization === o} onClick={() => setOrganization(o)}>
+              {o}
+            </button>
+          ))}
+        </div>
+        <div className="filters" role="group" aria-label="Регион">
+          {regions.map((r) => (
+            <button key={r} type="button" aria-pressed={region === r} onClick={() => setRegion(r)}>
+              {r}
+            </button>
+          ))}
+        </div>
+        <div className="filters" role="group" aria-label="Отрасль">
+          {industries.map((i) => (
+            <button key={i} type="button" aria-pressed={industry === i} onClick={() => setIndustry(i)}>
+              {i}
+            </button>
+          ))}
+        </div>
+        <div className="filters" role="group" aria-label="Статус">
+          {statuses.map((s) => (
+            <button key={s} type="button" aria-pressed={status === s} onClick={() => setStatus(s)}>
+              {s}
+            </button>
+          ))}
+        </div>
+      </details>
 
       <div className="map-shell">
         <div>

@@ -73,6 +73,10 @@ export function DefinitionEditorShell({ definitionId }: { definitionId: string }
   const [detail, setDetail] = useState<DefinitionDetail | null>(null);
   const [doc, setDoc] = useState<AdminDefinitionDoc | null>(null);
   const [selection, setSelection] = useState<EditorSelection>({ kind: "meta" });
+  // Мобильная раскладка (≤768px, см. globals.css): вместо трёх колонок сразу — вкладки
+  // «Структура / Превью / Свойства». Игнорируется CSS на десктопе (там все три панели
+  // видны одновременно как раньше — `data-mobile-active` там ничего не скрывает).
+  const [mobileTab, setMobileTab] = useState<"tree" | "preview" | "properties">("tree");
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
   const [saveError, setSaveError] = useState<string | null>(null);
   const [savedAt, setSavedAt] = useState<Date | null>(null);
@@ -618,7 +622,18 @@ export function DefinitionEditorShell({ definitionId }: { definitionId: string }
 
   return (
     <div className="workspace">
-      <aside className="panel">
+      <div className="workspace-tabs" role="tablist" aria-label="Разделы конструктора">
+        <button type="button" role="tab" aria-selected={mobileTab === "tree"} onClick={() => setMobileTab("tree")}>
+          Структура
+        </button>
+        <button type="button" role="tab" aria-selected={mobileTab === "preview"} onClick={() => setMobileTab("preview")}>
+          Превью
+        </button>
+        <button type="button" role="tab" aria-selected={mobileTab === "properties"} onClick={() => setMobileTab("properties")}>
+          Свойства
+        </button>
+      </div>
+      <aside className="panel" data-mobile-active={mobileTab === "tree"}>
         <h2>Структура</h2>
         <p className="muted">
           {detail.title || doc.meta.title} · v{detail.version} ·{" "}
@@ -640,7 +655,7 @@ export function DefinitionEditorShell({ definitionId }: { definitionId: string }
         )}
       </aside>
 
-      <main className="canvas" id="main">
+      <main className="canvas" id="main" data-mobile-active={mobileTab === "preview"}>
         {aiNotice && (
           <div className="mock" role="status">
             {aiNotice.degraded && <p><strong>AI в демо-режиме</strong> — черновик собран запасным генератором, проверьте его особенно внимательно.</p>}
@@ -756,7 +771,7 @@ export function DefinitionEditorShell({ definitionId }: { definitionId: string }
         )}
       </main>
 
-      <aside className="properties">
+      <aside className="properties" data-mobile-active={mobileTab === "properties"}>
         {renderProperties()}
         {selectionIssues.length > 0 && (
           <div className="field">
