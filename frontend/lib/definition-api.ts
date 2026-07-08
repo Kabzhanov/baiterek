@@ -24,7 +24,9 @@ import type {
 const BASE = "/v1/admin/definitions";
 
 export const definitionAdminApi = {
-  list: () => call<DefinitionListItem[]>(BASE),
+  // Бэкенд отдаёт список в обёртке {items: [...]} (как и кабинет), поэтому разворачиваем
+  // до массива — компонент реестра работает с DefinitionListItem[].
+  list: async () => (await call<{ items: DefinitionListItem[] }>(BASE)).items,
   get: (id: string) => call<DefinitionDetail>(`${BASE}/${encodeURIComponent(id)}`),
   create: (slug: string, definition: AdminDefinitionDoc) =>
     call<DefinitionDetail>(BASE, {
