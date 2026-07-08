@@ -56,3 +56,32 @@ async def test_match_services_with_mock_provider_uses_keyword_fallback_method():
 
     assert method == "keyword"
     assert matches[0].slug == "garantiya-eksport"
+
+
+# Демо-сценарий №2: аграрный запрос без буквального совпадения слов ("ферма"≠"ферм",
+# "поголовье" в описании нет) должен всё равно ставить профильную аграрную меру выше
+# оборотного кредита — за счёт тематического словаря, а не хардкода slug.
+_AGRO_CATALOG = [
+    _CATALOG[0],  # oborotnoe-msb: буквально пересекается по «оборотных/средств»
+    {
+        "slug": "agro-livestock",
+        "title": "Агробизнес: сельское хозяйство",
+        "summary_plain": "Финансирование покупки скота, строительства ферм и оборотных средств для хозяйств.",
+        "category": "credit",
+    },
+]
+
+
+def test_keyword_match_ranks_agrarian_query_above_working_capital():
+    results = keyword_match("у меня ферма, хочу увеличить поголовье", _AGRO_CATALOG)
+
+    assert results[0].slug == "agro-livestock"
+    assert results[0].why  # объяснение непустое (совпадение по теме)
+
+
+def test_keyword_match_synonym_bonus_does_not_hijack_literal_match():
+    # Явно "оборотный" запрос: аграрная мера тоже содержит "оборотных средств", но
+    # буквальное совпадение оборотной меры должно оставить её первой.
+    results = keyword_match("нужен кредит на пополнение оборотных средств", _AGRO_CATALOG)
+
+    assert results[0].slug == "oborotnoe-msb"

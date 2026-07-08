@@ -13,6 +13,7 @@ import { buildStageDemoFillDelta } from "@/lib/demo-fill";
 import { distributeGbdUlResponse, isGbdLookupTrigger, isGbdPrefillTarget, looksLikeBin } from "@/lib/gbd-ul-prefill";
 import { buildScreenPlan, fieldIndex, findPlanIndexByScreenKey, type PlanScreen } from "@/lib/screen-plan";
 import { buildStageProgress, classifyDraftError, isUnderReview } from "@/lib/stage-progress";
+import { RESTART_CONFIRM_MESSAGE, buildRestartDelta, firstScreenCheckpoint } from "@/lib/restart-wizard";
 import { nextSteps, statusLabel } from "@/lib/status-labels";
 import type {
   CabinetApplicationDetail,
@@ -284,6 +285,41 @@ export function ApplicationWizard({ slug, applicationId }: { slug: string; appli
     if (!screen || !definition) return;
     const delta = buildStageDemoFillDelta(definition, screen.stage, data);
     for (const [key, value] of Object.entries(delta)) updateField(key, value);
+  }
+
+  // «Начать заново» (SPEC.md §6, п.7): после подтверждения очищаем черновик и возвращаемся
+  // на первый экран. Бэкенд не умеет restart, поэтому одним PATCH обнуляем все заполненные
+  // поля и переставляем checkpoint в начало — тем же autosave-контрактом, что и обычная
+  // правка (см. lib/restart-wizard.ts). 409-восстановление переиспользуем как есть.
+  async function handleRestart() {
+    const id = applicationIdRef.current;
+    if (!id) return;
+    if (!window.confirm(RESTART_CONFIRM_MESSAGE)) return;
+    saverRef.current.cancel();
+    const delta = buildRestartDelta(data);
+    const target = firstScreenCheckpoint(planRef.current);
+    // Локальный сброс сразу — форма визуально чистая, даже пока PATCH в полёте.
+    setData({});
+    setFieldErrors({});
+    setSubmitErrors(null);
+    setProfileSourcedKeys(new Set());
+    setGbdLookup({ status: "idle", result: null, triggerKey: null });
+    gbdLookupSeenRef.current = null;
+    setCurrentPlanIndex(0);
+    setPhase("active");
+    if (Object.keys(delta).length === 0 && !target) return;
+    setSaveStatus("saving");
+    try {
+      const result = await applicationApi.patchDraft(id, {
+        data_delta: delta,
+        checkpoint: target,
+        expected_revision: revisionRef.current,
+      });
+      applyPatchResult(result.revision, result.checkpoint, result.screen);
+      setData({});
+    } catch (err) {
+      await recoverFromSaveError(err, delta, target);
+    }
   }
 
   // Предзаполнение по БИН (SPEC.md §3.2/§8, требования 4/7): срабатывает только на поле-
@@ -899,6 +935,15 @@ export function ApplicationWizard({ slug, applicationId }: { slug: string; appli
                 </button>
               )}
             </div>
+            {/* «Начать заново» (SPEC.md §6, п.7) — неброско, отдельно от навигации и «Отправить»,
+                только для обычного черновика (не для уже открытого следующего этапа). */}
+            {status === "draft" && (
+              <p className="restart-hint muted">
+                <button type="button" className="link-button" onClick={handleRestart}>
+                  Начать заново
+                </button>
+              </p>
+            )}
           </div>
         )}
 
